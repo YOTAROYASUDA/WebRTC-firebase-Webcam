@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <title>WebRTC コーデック選択テスト</title>
+  <style>
+    body { 
+      font-family: sans-serif; 
+      line-height: 1.8;
+    }
+    #senderControls, #receiverControls, #callControls {
+      margin-bottom: 15px;
+    }
+    video {
+      width: 640px;
+      height: 360px;
+      object-fit: cover;
+      background-color: black;
+      border: 1px solid #ccc;
+      margin-top: 5px;
+    }
+    #localVideo, #remoteVideo {
+        /* 初期状態ではビデオを非表示にしておく */
+        display: none;
+    }
+  </style>
+  <script type="module" crossorigin src="/WebRTC-firebase-Webcam/assets/index-qY8WhbkR.js"></script>
+</head>
+<body>
+  <div>
+    <label><input type="radio" name="role" value="sender" checked>送信</label>
+    <label><input type="radio" name="role" value="receiver">受信</label>
+  </div>
+
+  <div id="senderControls" style="display: block;">
+    <label for="resolution">解像度:</label>
+    <select id="resolution">
+      <option value="hd">1280x720</option>
+      <option value="fhd">1920x1080</option>
+      <option value="fourK">3840x2160</option>
+    </select>
+
+    <label for="codecSelect">コーデック:</label>
+    <select id="codecSelect">
+      <option value="VP8">VP8</option>
+      <option value="VP9">VP9</option>
+      <option value="H264">H264</option>
+      <option value="AV1">AV1</option>
+    </select>
+
+    <button id="startCamera">カメラ開始 & 通話作成</button>
+  </div>
+
+  <div id="receiverControls" style="display: none;">
+    <input id="callIdInput" placeholder="Call ID を入力" />
+    <button id="joinCall">通話に参加</button>
+  </div>
+  
+  <div id="callControls" style="display: none;">
+      <strong>Call ID:</strong> <span id="callIdDisplay"></span>
+      <button id="copyCallId">コピー</button>
+      <button id="hangUpBtn" style="margin-left: 20px; background-color: #ff4d4d; color: white;">通話を切る</button>
+  </div>
+
+  <div id="videoArea">
+      <video id="localVideo" autoplay playsinline muted></video>
+      <video id="remoteVideo" autoplay playsinline></video>
+  </div>
+
+</body>
+</html>
