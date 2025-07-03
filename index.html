@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8" />
-  <title>WebRTC コーデック選択テスト</title>
+  <title>WebRTC テスト</title>
   <style>
     body { 
       font-family: sans-serif; 
@@ -22,6 +22,16 @@
     #localVideo, #remoteVideo {
         /* 初期状態ではビデオを非表示にしておく */
         display: none;
+    }
+    #statsControls {
+      margin-top: 20px;
+      border-top: 1px solid #eee;
+      padding-top: 15px;
+    }
+    #statsDisplay {
+        margin-top: 10px;
+        font-size: 0.9em;
+        color: #555;
     }
   </style>
 </head>
@@ -64,6 +74,14 @@
   <div id="videoArea">
       <video id="localVideo" autoplay playsinline muted></video>
       <video id="remoteVideo" autoplay playsinline></video>
+  </div>
+
+  <div id="statsControls" style="display: none;">
+    <h3>統計情報記録</h3>
+    <button id="startStatsRecording">記録開始</button>
+    <button id="stopStatsRecording" disabled>記録停止</button>
+    <button id="downloadStats" disabled>CSVダウンロード</button>
+    <div id="statsDisplay"></div>
   </div>
 
   <script type="module" src="main.js"></script>
