@@ -158,8 +158,6 @@ function resetUI() {
 }
 
 
-// --- 統計情報収集関連の関数 ---
-
 /**
  * 統計情報の収集を開始する
  */
@@ -198,11 +196,17 @@ async function startStatsRecording() {
             if (lastOutboundReport && typeof lastOutboundReport.bytesSent === 'number') {
               const bytesSent = report.bytesSent - lastOutboundReport.bytesSent;
               dataToRecord.sent_bitrate_kbps = Math.round((Math.max(0, bytesSent) * 8) / 1000);
+                 
+              const packetsSent = report.packetsSent - lastOutboundReport.packetsSent;
+              dataToRecord.packets_sent_per_second = Math.max(0, packetsSent);
+
             } else {
               dataToRecord.sent_bitrate_kbps = 0;
+              dataToRecord.packets_sent_per_second = 0;
             }
           } else {
             dataToRecord.sent_bitrate_kbps = 0;
+            dataToRecord.packets_sent_per_second = 0;
           }
         }
         // 受信側からフィードバックされるリモート統計情報
@@ -238,11 +242,17 @@ async function startStatsRecording() {
             if (lastInboundReport && typeof lastInboundReport.bytesReceived === 'number') {
               const bytesReceived = report.bytesReceived - lastInboundReport.bytesReceived;
               dataToRecord.received_bitrate_kbps = Math.round((Math.max(0, bytesReceived) * 8) / 1000);
+
+              const packetsReceived = report.packetsReceived - lastInboundReport.packetsReceived;
+              dataToRecord.packets_received_per_second = Math.max(0, packetsReceived);
+
             } else {
               dataToRecord.received_bitrate_kbps = 0;
+              dataToRecord.packets_received_per_second = 0;
             }
           } else {
             dataToRecord.received_bitrate_kbps = 0;
+            dataToRecord.packets_received_per_second = 0;
           }
         }
       });
