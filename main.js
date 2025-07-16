@@ -9,39 +9,48 @@ const senderControls = document.getElementById("senderControls");
 const receiverControls = document.getElementById("receiverControls");
 const callControls = document.getElementById("callControls");
 const statsControls = document.getElementById("statsControls");
-
 const resolutionSelect = document.getElementById("resolution");
 const codecSelect = document.getElementById("codecSelect");
 const startCameraBtn = document.getElementById("startCamera");
 const joinCallBtn = document.getElementById("joinCall");
 const hangUpBtn = document.getElementById("hangUpBtn");
-
 const callIdInput = document.getElementById("callIdInput");
 const callIdDisplay = document.getElementById("callIdDisplay");
 const copyCallIdBtn = document.getElementById("copyCallId");
-
 const localVideo = document.getElementById("localVideo");
 const remoteVideo = document.getElementById("remoteVideo");
-
-// 統計情報関連のHTML要素
 const startStatsRecordingBtn = document.getElementById("startStatsRecording");
 const stopStatsRecordingBtn = document.getElementById("stopStatsRecording");
 const downloadStatsBtn = document.getElementById("downloadStats");
 const statsDisplay = document.getElementById("statsDisplay");
+const ptzControls = document.getElementById("ptzControls");
+const zoomInBtn = document.getElementById("zoomInBtn");
+const zoomOutBtn = document.getElementById("zoomOutBtn");
+const zoomSlider = document.getElementById("zoomSlider");
+const zoomValue = document.getElementById("zoomValue");
+const tiltUpBtn = document.getElementById("tiltUpBtn");
+const tiltDownBtn = document.getElementById("tiltDownBtn");
+const tiltSlider = document.getElementById("tiltSlider");
+const tiltValue = document.getElementById("tiltValue");
+const panLeftBtn = document.getElementById("panLeftBtn");
+const panRightBtn = document.getElementById("panRightBtn");
+const panSlider = document.getElementById("panSlider");
+const panValue = document.getElementById("panValue");
+const ptzResetBtn = document.getElementById("ptzResetBtn");
 
 // --- グローバル変数 ---
 let peerConnection;
 let localStream;
-let callDocRef; // Firestoreのドキュメント参照を保持
-let offerCandidates, answerCandidates; // サブコレクションの参照を保持
-
-// 統計情報関連のグローバル変数
+let callDocRef;
+let offerCandidates, answerCandidates;
+let videoTrack;
+let ptzChannel;
+let ptzCapabilities = {};
 let statsInterval;
-let recordedStats = []; // 記録された統計データを格納する配列
-let isRecording = false; // 記録中かどうかを示すフラグ
-let currentRole = "sender"; // 現在の役割を追跡する変数を追加
-let lastReport = null; // ビットレート計算のために前回のレポートを保持
-
+let recordedStats = [];
+let isRecording = false;
+let currentRole = "sender";
+let lastReport = null;
 const resolutions = {
   hd: { width: 1280, height: 720 },
   fhd: { width: 1920, height: 1080 },
@@ -50,9 +59,6 @@ const resolutions = {
 
 // --- WebRTC関連の関数 ---
 
-/**
- * STUN/TURNサーバー設定を元にRTCPeerConnectionを初期化
- */
 function setupConnection() {
   const configuration = {
     iceServers: [
@@ -66,32 +72,24 @@ function setupConnection() {
   };
   peerConnection = new RTCPeerConnection(configuration);
 
-  // peerConnectionが確立されたら統計情報コントロールを表示
   peerConnection.onconnectionstatechange = () => {
+      console.log(`PeerConnection state changed to: ${peerConnection.connectionState}`);
       if (peerConnection.connectionState === 'connected') {
           statsControls.style.display = 'block';
       } else if (peerConnection.connectionState === 'disconnected' || peerConnection.connectionState === 'failed' || peerConnection.connectionState === 'closed') {
           statsControls.style.display = 'none';
-          stopStatsRecording(); // 接続が切れたら記録も停止
+          stopStatsRecording();
       }
   };
 }
 
-/**
- * SDPを操作して特定のビデオコーデックを優先する
- * @param {string} sdp - 元のSDP
- * @param {string} codecName - 優先したいコーデック名 (例: 'VP9', 'H264')
- * @returns {string} - 変更後のSDP
- */
 function preferCodec(sdp, codecName) {
   const lines = sdp.split('\r\n');
   const mLineIndex = lines.findIndex(line => line.startsWith('m=video'));
   if (mLineIndex === -1) return sdp;
-
   const codecRegex = new RegExp(`a=rtpmap:(\\d+) ${codecName}/90000`, 'i');
   const codecLine = lines.find(line => codecRegex.test(line));
   if (!codecLine) return sdp;
-
   const codecPayload = codecLine.match(codecRegex)[1];
   const mLineParts = lines[mLineIndex].split(' ');
   const newMLine = [
@@ -100,16 +98,11 @@ function preferCodec(sdp, codecName) {
     ...mLineParts.slice(3).filter(pt => pt !== codecPayload)
   ];
   lines[mLineIndex] = newMLine.join(' ');
-
   return lines.join('\r\n');
 }
 
-/**
- * 通話を終了し、リソースを解放する
- */
 async function hangUp() {
-  stopStatsRecording(); // 通話終了時に統計記録を停止
-
+  stopStatsRecording();
   if (peerConnection) {
     peerConnection.close();
     peerConnection = null;
@@ -119,114 +112,84 @@ async function hangUp() {
     localStream = null;
   }
   if (callDocRef) {
-    // Firestoreのドキュメントを削除してクリーンアップ
     await deleteDoc(callDocRef).catch(e => console.error("Error deleting document: ", e));
     callDocRef = null;
   }
-  
   resetUI();
 }
 
-/**
- * UIを初期状態にリセットする
- */
 function resetUI() {
     localVideo.srcObject = null;
     remoteVideo.srcObject = null;
-    // ビデオ要素を非表示にする
     localVideo.style.display = 'none';
     remoteVideo.style.display = 'none';
-
+    if (ptzChannel) {
+        ptzChannel.close();
+        ptzChannel = null;
+    }
+    ptzControls.style.display = "none";
+    videoTrack = null;
     callControls.style.display = "none";
-    statsControls.style.display = "none"; // 統計情報コントロールも非表示に
+    statsControls.style.display = "none";
     callIdDisplay.textContent = "";
     callIdInput.value = "";
     copyCallIdBtn.textContent = "コピー";
-    
-    // ボタンの状態をリセット
     startCameraBtn.disabled = false;
     joinCallBtn.disabled = false;
-
-    // 統計情報関連のUIもリセット
     statsDisplay.textContent = "";
     recordedStats = [];
     isRecording = false;
-    lastReport = null; // 統計情報リセット
+    lastReport = null;
     startStatsRecordingBtn.disabled = false;
     stopStatsRecordingBtn.disabled = true;
     downloadStatsBtn.disabled = true;
 }
 
-
-/**
- * 統計情報の収集を開始する
- */
 async function startStatsRecording() {
   if (!peerConnection || isRecording) return;
-
   isRecording = true;
-  recordedStats = []; // 新しい記録セッションのためにクリア
-  lastReport = null; // 記録開始時にリセット
-
+  recordedStats = [];
+  lastReport = null;
   startStatsRecordingBtn.disabled = true;
   stopStatsRecordingBtn.disabled = false;
-  downloadStatsBtn.disabled = true; // 記録中はダウンロード不可に
-
+  downloadStatsBtn.disabled = true;
   statsDisplay.textContent = "記録中...";
-
   statsInterval = setInterval(async () => {
     if (!peerConnection) return;
     const stats = await peerConnection.getStats();
     const currentTime = new Date().toISOString();
     let dataToRecord = { timestamp: currentTime };
-
-    // --- 送信側の統計 (Sender Role) ---
     if (currentRole === "sender") {
       stats.forEach(report => {
-        // 送信映像ストリームに関する情報
         if (report.type === 'outbound-rtp' && report.mediaType === 'video') {
           dataToRecord.sent_resolution = `${report.frameWidth}x${report.frameHeight}`;
           dataToRecord.sent_fps = report.framesPerSecond;
           dataToRecord.total_encode_time_s = report.totalEncodeTime;
           dataToRecord.keyframes_encoded = report.keyFramesEncoded;
           dataToRecord.quality_limitation_reason = report.qualityLimitationReason;
-          
           if (lastReport) {
             const lastOutboundReport = lastReport.get(report.id);
             if (lastOutboundReport && typeof lastOutboundReport.bytesSent === 'number') {
               const bytesSent = report.bytesSent - lastOutboundReport.bytesSent;
               dataToRecord.sent_bitrate_kbps = Math.round((Math.max(0, bytesSent) * 8) / 1000);
-                 
               const packetsSent = report.packetsSent - lastOutboundReport.packetsSent;
               dataToRecord.packets_sent_per_second = Math.max(0, packetsSent);
-
-            } else {
-              dataToRecord.sent_bitrate_kbps = 0;
-              dataToRecord.packets_sent_per_second = 0;
-            }
-          } else {
-            dataToRecord.sent_bitrate_kbps = 0;
-            dataToRecord.packets_sent_per_second = 0;
-          }
+            } else { dataToRecord.sent_bitrate_kbps = 0; dataToRecord.packets_sent_per_second = 0;}
+          } else { dataToRecord.sent_bitrate_kbps = 0; dataToRecord.packets_sent_per_second = 0; }
         }
-        // 受信側からフィードバックされるリモート統計情報
         if (report.type === 'remote-inbound-rtp' && report.mediaType === 'video') {
             dataToRecord.receiver_jitter_ms = report.jitter !== undefined ? (report.jitter * 1000).toFixed(3) : 'N/A';
             dataToRecord.receiver_packets_lost = report.packetsLost;
             dataToRecord.receiver_fraction_lost = report.fractionLost;
             dataToRecord.rtt_rtcp_ms = report.roundTripTime !== undefined ? (report.roundTripTime * 1000).toFixed(3) : 'N/A';
         }
-        // 接続経路に関する情報
         if (report.type === 'candidate-pair' && report.nominated && report.state === 'succeeded') {
             dataToRecord.available_outgoing_bitrate_kbps = report.availableOutgoingBitrate ? Math.round(report.availableOutgoingBitrate / 1000) : 'N/A';
             dataToRecord.rtt_ice_ms = report.currentRoundTripTime !== undefined ? (report.currentRoundTripTime * 1000).toFixed(3) : 'N/A';
         }
       });
-    }
-    // --- 受信側の統計 (Receiver Role) ---
-    else {
+    } else {
       stats.forEach(report => {
-        // 受信映像ストリームに関する情報
         if (report.type === 'inbound-rtp' && report.mediaType === 'video') {
           dataToRecord.received_resolution = `${report.frameWidth}x${report.frameHeight}`;
           dataToRecord.received_fps = report.framesPerSecond;
@@ -236,117 +199,80 @@ async function startStatsRecording() {
           dataToRecord.total_decode_time_s = report.totalDecodeTime;
           dataToRecord.keyframes_decoded = report.keyFramesDecoded;
           dataToRecord.jitter_buffer_delay_s = report.jitterBufferDelay;
-          
           if (lastReport) {
             const lastInboundReport = lastReport.get(report.id);
             if (lastInboundReport && typeof lastInboundReport.bytesReceived === 'number') {
               const bytesReceived = report.bytesReceived - lastInboundReport.bytesReceived;
               dataToRecord.received_bitrate_kbps = Math.round((Math.max(0, bytesReceived) * 8) / 1000);
-
               const packetsReceived = report.packetsReceived - lastInboundReport.packetsReceived;
               dataToRecord.packets_received_per_second = Math.max(0, packetsReceived);
-
-            } else {
-              dataToRecord.received_bitrate_kbps = 0;
-              dataToRecord.packets_received_per_second = 0;
-            }
-          } else {
-            dataToRecord.received_bitrate_kbps = 0;
-            dataToRecord.packets_received_per_second = 0;
-          }
+            } else { dataToRecord.received_bitrate_kbps = 0; dataToRecord.packets_received_per_second = 0; }
+          } else { dataToRecord.received_bitrate_kbps = 0; dataToRecord.packets_received_per_second = 0; }
         }
       });
     }
-
-    // 記録するデータがタイムスタンプ以外にあれば追加
     if (Object.keys(dataToRecord).length > 1) {
       recordedStats.push(dataToRecord);
       statsDisplay.textContent = `記録中... ${recordedStats.length} エントリ`;
     }
-
-    // 次の計算のために現在のレポートを保持
     lastReport = stats;
-
-  }, 1000); // 1秒ごとに統計情報を取得
+  }, 1000);
 }
 
-/**
- * 統計情報の収集を停止する
- */
 function stopStatsRecording() {
   if (!isRecording) return;
-
   clearInterval(statsInterval);
   isRecording = false;
-  lastReport = null; // 状態をリセット
-
+  lastReport = null;
   startStatsRecordingBtn.disabled = false;
   stopStatsRecordingBtn.disabled = true;
-  downloadStatsBtn.disabled = recordedStats.length === 0; // データがあればダウンロード可能に
-
+  downloadStatsBtn.disabled = recordedStats.length === 0;
   statsDisplay.textContent = `記録停止。${recordedStats.length} エントリ。`;
 }
 
-/**
- * 記録された統計情報をCSVとしてダウンロードする
- */
 function downloadStatsAsCsv() {
   if (recordedStats.length === 0) {
       alert("ダウンロードするデータがありません。");
       return;
   }
-
-  // ヘッダーを動的に生成する（記録された全データのキーを網羅する）
   const headerSet = new Set();
-  recordedStats.forEach(row => {
-    Object.keys(row).forEach(key => headerSet.add(key));
-  });
+  recordedStats.forEach(row => { Object.keys(row).forEach(key => headerSet.add(key)); });
   const headers = Array.from(headerSet);
-
   const csvRows = [];
-  csvRows.push(headers.join(',')); // ヘッダー行
-
+  csvRows.push(headers.join(','));
   recordedStats.forEach(row => {
       const values = headers.map(header => {
-          const value = row[header] !== undefined ? row[header] : ''; // 未定義の場合は空文字
-          // CSVフォーマットのためにカンマや引用符をエスケープ
-          if (typeof value === 'string' && value.includes(',')) {
-              return `"${value.replace(/"/g, '""')}"`;
-          }
+          const value = row[header] !== undefined ? row[header] : '';
+          if (typeof value === 'string' && value.includes(',')) { return `"${value.replace(/"/g, '""')}"`; }
           return value;
       });
       csvRows.push(values.join(','));
   });
-
   const csvString = csvRows.join('\n');
   const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.setAttribute('href', url);
-  // ファイル名を役割に基づいて動的に設定
   const fileNameRole = currentRole === "sender" ? "sender" : "receiver";
   link.setAttribute('download', `webrtc_stats_${fileNameRole}_${new Date().toISOString().replace(/[:.]/g, '-')}.csv`);
   link.style.display = 'none';
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
-  URL.revokeObjectURL(url); // オブジェクトURLを解放
+  URL.revokeObjectURL(url);
 }
-
 
 // --- UIイベントリスナー ---
 
-// 役割（送信/受信）の切り替え
 roleInputs.forEach(input => {
   input.addEventListener("change", () => {
-    currentRole = document.querySelector('input[name="role"]:checked').value; // 役割を更新
+    currentRole = document.querySelector('input[name="role"]:checked').value;
     senderControls.style.display = currentRole === "sender" ? "block" : "none";
     receiverControls.style.display = currentRole === "receiver" ? "block" : "none";
-    resetUI(); // 役割切り替え時にUIをリセット
+    resetUI();
   });
 });
 
-// Call IDのコピー
 copyCallIdBtn.onclick = () => {
   const callId = callIdDisplay.textContent.trim();
   if (!callId) return;
@@ -358,20 +284,48 @@ copyCallIdBtn.onclick = () => {
     .catch(() => alert("コピーに失敗しました"));
 };
 
-// [送信者] カメラ開始 & 通話作成
 startCameraBtn.onclick = async () => {
   startCameraBtn.disabled = true;
-
   const selectedResolution = resolutionSelect.value;
   const selectedCodec = codecSelect.value;
-  const constraints = { video: resolutions[selectedResolution], audio: true };
+  const constraints = { 
+    video: { ...resolutions[selectedResolution], pan: true, tilt: true, zoom: true }, 
+    audio: true 
+  };
 
   try {
       localStream = await navigator.mediaDevices.getUserMedia(constraints);
       localVideo.srcObject = localStream;
-      localVideo.style.display = 'block'; // ローカルビデオを表示
+      localVideo.style.display = 'block';
+      [videoTrack] = localStream.getVideoTracks();
 
       setupConnection();
+
+      console.log("SENDER: Creating DataChannel 'ptz'...");
+      ptzChannel = peerConnection.createDataChannel('ptz');
+      
+      ptzChannel.onopen = () => {
+        console.log("SENDER: DataChannel is open. Sending capabilities...");
+        const capabilities = videoTrack.getCapabilities();
+        ptzCapabilities = {
+          zoom: capabilities.zoom || null,
+          pan: capabilities.pan || null,
+          tilt: capabilities.tilt || null,
+        };
+        console.log("SENDER: Sending capabilities:", ptzCapabilities);
+        ptzChannel.send(JSON.stringify({ type: 'capabilities', data: ptzCapabilities }));
+      };
+      
+      ptzChannel.onmessage = (event) => {
+        const msg = JSON.parse(event.data);
+        console.log("SENDER: Received command:", msg);
+        if (msg.type === 'command' && videoTrack) {
+          applyPtzConstraint(msg.command, msg.value);
+        }
+      };
+      
+      ptzChannel.onclose = () => console.log("SENDER: DataChannel is closed.");
+      ptzChannel.onerror = (error) => console.error("SENDER: DataChannel error:", error);
 
       callDocRef = doc(collection(db, "calls"));
       offerCandidates = collection(callDocRef, "offerCandidates");
@@ -380,9 +334,7 @@ startCameraBtn.onclick = async () => {
       localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
 
       peerConnection.onicecandidate = event => {
-        if (event.candidate) {
-          setDoc(doc(offerCandidates), event.candidate.toJSON());
-        }
+        if (event.candidate) setDoc(doc(offerCandidates), event.candidate.toJSON());
       };
 
       const offer = await peerConnection.createOffer();
@@ -391,23 +343,18 @@ startCameraBtn.onclick = async () => {
       await setDoc(callDocRef, { offer: { type: offer.type, sdp: modifiedSDP } });
 
       callIdDisplay.textContent = callDocRef.id;
-      callControls.style.display = "block"; // 通話コントロールを表示
+      callControls.style.display = "block";
 
-      // 相手のAnswerを待つ
       onSnapshot(callDocRef, snapshot => {
         const data = snapshot.data();
         if (data?.answer && !peerConnection.currentRemoteDescription) {
-          const answerDesc = new RTCSessionDescription(data.answer);
-          peerConnection.setRemoteDescription(answerDesc);
+          peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
         }
       });
       
-      // 相手のICE Candidateを待つ
       onSnapshot(answerCandidates, snapshot => {
         snapshot.docChanges().forEach(change => {
-          if (change.type === "added") {
-            peerConnection.addIceCandidate(new RTCIceCandidate(change.doc.data()));
-          }
+          if (change.type === "added") peerConnection.addIceCandidate(new RTCIceCandidate(change.doc.data()));
         });
       });
   } catch (error) {
@@ -417,11 +364,9 @@ startCameraBtn.onclick = async () => {
   }
 };
 
-// [受信者] 通話に参加
 joinCallBtn.onclick = async () => {
   const callId = callIdInput.value.trim();
   if (!callId) return alert("Call ID を入力してください");
-  
   joinCallBtn.disabled = true;
 
   try {
@@ -429,38 +374,49 @@ joinCallBtn.onclick = async () => {
       const callData = (await getDoc(callDocRef)).data();
 
       if (callData && callData.offer) {
-        offerCandidates = collection(callDocRef, "offerCandidates");
-        answerCandidates = collection(callDocRef, "answerCandidates");
-
         setupConnection();
 
-        peerConnection.ontrack = event => {
-          remoteVideo.srcObject = event.streams[0];
-          remoteVideo.style.display = 'block'; // リモートビデオを表示
-        };
-
-        peerConnection.onicecandidate = event => {
-          if (event.candidate) {
-            setDoc(doc(answerCandidates), event.candidate.toJSON());
+        peerConnection.ondatachannel = (event) => {
+          console.log(`RECEIVER: ondatachannel event fired. Channel label: '${event.channel.label}'`);
+          if (event.channel.label === 'ptz') {
+              ptzChannel = event.channel;
+              ptzChannel.onopen = () => console.log("RECEIVER: DataChannel is open.");
+              ptzChannel.onmessage = (e) => {
+                  const msg = JSON.parse(e.data);
+                  console.log("RECEIVER: Received message:", msg);
+                  if (msg.type === 'capabilities') {
+                      setupReceiverPtzControls(msg.data);
+                      ptzControls.style.display = 'block';
+                  }
+              };
+              ptzChannel.onclose = () => {
+                  console.log("RECEIVER: DataChannel is closed.");
+                  ptzControls.style.display = 'none';
+              };
+              ptzChannel.onerror = (error) => console.error("RECEIVER: DataChannel error:", error);
           }
         };
 
-        const offerDesc = new RTCSessionDescription(callData.offer);
-        await peerConnection.setRemoteDescription(offerDesc);
+        offerCandidates = collection(callDocRef, "offerCandidates");
+        answerCandidates = collection(callDocRef, "answerCandidates");
+        peerConnection.ontrack = event => {
+          remoteVideo.srcObject = event.streams[0];
+          remoteVideo.style.display = 'block';
+        };
+        peerConnection.onicecandidate = event => {
+          if (event.candidate) setDoc(doc(answerCandidates), event.candidate.toJSON());
+        };
 
+        await peerConnection.setRemoteDescription(new RTCSessionDescription(callData.offer));
         const answer = await peerConnection.createAnswer();
         await peerConnection.setLocalDescription(answer);
         await setDoc(callDocRef, { answer: { type: answer.type, sdp: answer.sdp } }, { merge: true });
-        
         callIdDisplay.textContent = callDocRef.id;
-        callControls.style.display = "block"; // 通話コントロールを表示
+        callControls.style.display = "block";
 
-        // 相手のICE Candidateを待つ
         onSnapshot(offerCandidates, snapshot => {
           snapshot.docChanges().forEach(change => {
-            if (change.type === "added") {
-              peerConnection.addIceCandidate(new RTCIceCandidate(change.doc.data()));
-            }
+            if (change.type === "added") peerConnection.addIceCandidate(new RTCIceCandidate(change.doc.data()));
           });
         });
       } else {
@@ -472,14 +428,112 @@ joinCallBtn.onclick = async () => {
       alert("通話への参加中にエラーが発生しました。Call IDが正しいか確認してください。");
       resetUI();
   } finally {
-      joinCallBtn.disabled = false; // エラーや完了に関わらずボタンを再度有効化
+      joinCallBtn.disabled = false;
   }
 };
 
-// [共通] 通話を切る
 hangUpBtn.onclick = hangUp;
-
-// 統計情報記録のイベントリスナー
 startStatsRecordingBtn.onclick = startStatsRecording;
 stopStatsRecordingBtn.onclick = stopStatsRecording;
 downloadStatsBtn.onclick = downloadStatsAsCsv;
+
+// --- PTZ関連のヘルパー関数 ---
+
+async function applyPtzConstraint(type, value) {
+  // ページが表示されているかチェック
+  if (document.visibilityState !== 'visible') {
+    console.warn(`SENDER: Page is not visible. Skipping PTZ command to prevent SecurityError.`);
+    return;
+  }
+
+  if (!videoTrack || videoTrack.readyState !== 'live') {
+      console.warn("SENDER: videoTrack is not available to apply PTZ constraints.");
+      return;
+  }
+  console.log(`SENDER: Applying constraint - type: ${type}, value: ${value}`);
+  try {
+    await videoTrack.applyConstraints({ advanced: [{ [type]: value }] });
+  } catch (err) {
+    console.error(`SENDER: Error applying ${type} constraint:`, err);
+  }
+}
+
+function setupReceiverPtzControls(capabilities) {
+  console.log("RECEIVER: Setting up PTZ controls with capabilities:", capabilities);
+  ptzCapabilities = capabilities;
+
+  const sendCommand = (type, value) => {
+    // 接続状態のチェックを強化
+    if (!peerConnection || peerConnection.connectionState !== 'connected') {
+        console.warn(`RECEIVER: Cannot send command, PeerConnection not connected. State: ${peerConnection?.connectionState}`);
+        return;
+    }
+    if (!ptzChannel || ptzChannel.readyState !== 'open') {
+        console.warn(`RECEIVER: Cannot send command, DataChannel not open. State: ${ptzChannel?.readyState}`);
+        return;
+    }
+    if(!ptzCapabilities[type]) {
+        console.warn(`RECEIVER: PTZ type '${type}' is not supported by the camera.`);
+        return;
+    }
+
+    const { min, max } = ptzCapabilities[type];
+    const clampedValue = Math.max(min, Math.min(max, value));
+    const command = { type: 'command', command: type, value: clampedValue };
+    
+    // コマンド送信処理をtry...catchで囲む
+    try {
+        console.log("RECEIVER: Attempting to send command:", command);
+        ptzChannel.send(JSON.stringify(command));
+        console.log("RECEIVER: Command sent successfully.");
+    } catch (e) {
+        console.error("RECEIVER: Error sending command via DataChannel:", e);
+    }
+    
+    document.getElementById(`${type}Slider`).value = clampedValue;
+    document.getElementById(`${type}Value`).textContent = clampedValue.toFixed(2);
+  };
+  
+  // UI要素の初期化
+  ['zoom', 'pan', 'tilt'].forEach(type => {
+      const isSupported = !!ptzCapabilities[type];
+      const elements = {
+          inBtn: document.getElementById(`${type}InBtn`) || document.getElementById(`${type}UpBtn`) || document.getElementById(`${type}RightBtn`),
+          outBtn: document.getElementById(`${type}OutBtn`) || document.getElementById(`${type}DownBtn`) || document.getElementById(`${type}LeftBtn`),
+          slider: document.getElementById(`${type}Slider`),
+          value: document.getElementById(`${type}Value`)
+      };
+      
+      if (elements.inBtn) elements.inBtn.disabled = !isSupported;
+      if (elements.outBtn) elements.outBtn.disabled = !isSupported;
+      if (elements.slider) elements.slider.disabled = !isSupported;
+
+      if (isSupported) {
+          const { min, max, step } = ptzCapabilities[type];
+          elements.slider.min = min;
+          elements.slider.max = max;
+          elements.slider.step = step;
+          const initialValue = (type === 'tilt' || type === 'pan') && min < 0 && max > 0 ? 0 : min;
+          elements.slider.value = initialValue;
+          elements.value.textContent = parseFloat(initialValue).toFixed(2);
+      }
+  });
+
+  const getSliderValue = (type) => parseFloat(document.getElementById(`${type}Slider`).value);
+  
+  // イベントリスナーの設定
+  zoomInBtn.onclick = () => { if (ptzCapabilities.zoom) sendCommand('zoom', getSliderValue('zoom') + ptzCapabilities.zoom.step); };
+  zoomOutBtn.onclick = () => { if (ptzCapabilities.zoom) sendCommand('zoom', getSliderValue('zoom') - ptzCapabilities.zoom.step); };
+  zoomSlider.oninput = () => { if (ptzCapabilities.zoom) sendCommand('zoom', getSliderValue('zoom')); };
+  tiltUpBtn.onclick = () => { if (ptzCapabilities.tilt) sendCommand('tilt', getSliderValue('tilt') + ptzCapabilities.tilt.step); };
+  tiltDownBtn.onclick = () => { if (ptzCapabilities.tilt) sendCommand('tilt', getSliderValue('tilt') - ptzCapabilities.tilt.step); };
+  tiltSlider.oninput = () => { if (ptzCapabilities.tilt) sendCommand('tilt', getSliderValue('tilt')); };
+  panRightBtn.onclick = () => { if (ptzCapabilities.pan) sendCommand('pan', getSliderValue('pan') + ptzCapabilities.pan.step); };
+  panLeftBtn.onclick = () => { if (ptzCapabilities.pan) sendCommand('pan', getSliderValue('pan') - ptzCapabilities.pan.step); };
+  panSlider.oninput = () => { if (ptzCapabilities.pan) sendCommand('pan', getSliderValue('pan')); };
+  ptzResetBtn.onclick = () => {
+      if(ptzCapabilities.zoom) sendCommand('zoom', ptzCapabilities.zoom.min);
+      if(ptzCapabilities.tilt) sendCommand('tilt', 0);
+      if(ptzCapabilities.pan) sendCommand('pan', 0);
+  };
+}
