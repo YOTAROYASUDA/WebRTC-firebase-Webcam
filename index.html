@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8" />
-  <title>WebRTC PTZ テスト (受信側操作)</title>
+  <title>WebRTC webcam</title>
   <style>
     body { 
       font-family: sans-serif; 
@@ -64,7 +64,7 @@
     <button id="joinCall">通話に参加</button>
 
     <div id="ptzControls" style="display: none; margin-top: 10px; border: 1px solid #ccc; padding: 10px;">
-      <h4>PTZ コントロール (対応カメラで有効)</h4>
+      <h4>PTZ 操作</h4>
       <div>
         <strong>ズーム:</strong>
         <button id="zoomOutBtn">-</button>
@@ -73,14 +73,14 @@
         <span id="zoomValue" style="font-family: monospace;"></span>
       </div>
       <div style="margin-top: 5px;">
-        <strong>チルト (上下):</strong>
+        <strong>チルト:</strong>
         <button id="tiltDownBtn">↓</button>
         <input type="range" id="tiltSlider" style="width: 150px; vertical-align: middle;">
         <button id="tiltUpBtn">↑</button>
         <span id="tiltValue" style="font-family: monospace;"></span>
       </div>
       <div style="margin-top: 5px;">
-        <strong>パン (左右):</strong>
+        <strong>パン:</strong>
         <button id="panLeftBtn">←</button>
         <input type="range" id="panSlider" style="width: 150px; vertical-align: middle;">
         <button id="panRightBtn">→</button>
