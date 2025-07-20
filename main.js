@@ -7,7 +7,6 @@ import {
 // --- 定数定義 (Constants) ---
 // =================================================================================
 
-/** 解像度の設定 */
 const RESOLUTIONS = {
   hd: { width: 1280, height: 720 },
   fhd: { width: 1920, height: 1080 },
@@ -38,6 +37,7 @@ const statsControls = document.getElementById("statsControls");
 const ptzControls = document.getElementById("ptzControls");
 
 const resolutionSelect = document.getElementById("resolution");
+const framerateSelect = document.getElementById("framerate");
 const codecSelect = document.getElementById("codecSelect");
 const startCameraBtn = document.getElementById("startCamera");
 const joinCallBtn = document.getElementById("joinCall");
@@ -247,9 +247,16 @@ function listenForRemoteCandidates(candidateCollection) {
 async function startCall() {
   startCameraBtn.disabled = true;
   const selectedResolution = resolutionSelect.value;
+  const selectedFramerate = parseInt(framerateSelect.value, 10);
   const selectedCodec = codecSelect.value;
   const constraints = {
-    video: { ...RESOLUTIONS[selectedResolution], pan: true, tilt: true, zoom: true },
+    video: { 
+        ...RESOLUTIONS[selectedResolution], 
+        frameRate: { ideal: selectedFramerate},
+        pan: true, 
+        tilt: true, 
+        zoom: true 
+    },
     audio: true
   };
 
@@ -558,6 +565,9 @@ function populateSenderStats(stats, dataToRecord) {
       dataToRecord.total_encode_time_s = report.totalEncodeTime;
       dataToRecord.keyframes_encoded = report.keyFramesEncoded;
       dataToRecord.quality_limitation_reason = report.qualityLimitationReason;
+      dataToRecord.quality_limitation_resolution_changes = report.qualityLimitationResolutionChanges;
+      dataToRecord.retransmitted_packets_sent = report.retransmittedPacketsSent;
+      dataToRecord.nack_count = report.nackCount;
     }
     if (report.type === 'remote-inbound-rtp' && report.mediaType === 'video') {
       dataToRecord.receiver_jitter_ms = (report.jitter * 1000)?.toFixed(3) ?? 'N/A';
@@ -594,6 +604,9 @@ function populateReceiverStats(stats, dataToRecord) {
       dataToRecord.total_decode_time_s = report.totalDecodeTime;
       dataToRecord.keyframes_decoded = report.keyFramesDecoded;
       dataToRecord.jitter_buffer_delay_s = report.jitterBufferDelay;
+      dataToRecord.fir_count = report.firCount;
+      dataToRecord.pli_count = report.pliCount;
+      dataToRecord.jitter_buffer_emitted_count = report.jitterBufferEmittedCount;
     }
   });
 }
