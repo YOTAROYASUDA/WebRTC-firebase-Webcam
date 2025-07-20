@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8" />
-  <title>WebRTC テスト</title>
+  <title>WebRTC webcam</title>
   <style>
     body { 
       font-family: sans-serif; 
@@ -20,7 +20,6 @@
       margin-top: 5px;
     }
     #localVideo, #remoteVideo {
-        /* 初期状態ではビデオを非表示にしておく */
         display: none;
     }
     #statsControls {
@@ -34,7 +33,7 @@
         color: #555;
     }
   </style>
-  <script type="module" crossorigin src="/WebRTC-firebase-Webcam/assets/index-CLkfYAM-.js"></script>
+  <script type="module" crossorigin src="/WebRTC-firebase-Webcam/assets/index-CQeTEoWO.js"></script>
 </head>
 <body>
   <div>
@@ -48,6 +47,15 @@
       <option value="hd">1280x720</option>
       <option value="fhd">1920x1080</option>
       <option value="fourK">3840x2160</option>
+    </select>
+
+    <label for="framerate">フレームレート:</label>
+    <select id="framerate">
+      <option value="15">15 fps</option>
+      <option value="25">25 fps</option>
+      <option value="30">30 fps</option>
+      <option value="50">50 fps</option>
+      <option value="60">60 fps</option>
     </select>
 
     <label for="codecSelect">コーデック:</label>
@@ -64,6 +72,32 @@
   <div id="receiverControls" style="display: none;">
     <input id="callIdInput" placeholder="Call ID を入力" />
     <button id="joinCall">通話に参加</button>
+
+    <div id="ptzControls" style="display: none; margin-top: 10px; border: 1px solid #ccc; padding: 10px;">
+      <h4>PTZ 操作</h4>
+      <div>
+        <strong>ズーム:</strong>
+        <button id="zoomOutBtn">-</button>
+        <input type="range" id="zoomSlider" style="width: 150px; vertical-align: middle;">
+        <button id="zoomInBtn">+</button>
+        <span id="zoomValue" style="font-family: monospace;"></span>
+      </div>
+      <div style="margin-top: 5px;">
+        <strong>チルト:</strong>
+        <button id="tiltDownBtn">↓</button>
+        <input type="range" id="tiltSlider" style="width: 150px; vertical-align: middle;">
+        <button id="tiltUpBtn">↑</button>
+        <span id="tiltValue" style="font-family: monospace;"></span>
+      </div>
+      <div style="margin-top: 5px;">
+        <strong>パン:</strong>
+        <button id="panLeftBtn">←</button>
+        <input type="range" id="panSlider" style="width: 150px; vertical-align: middle;">
+        <button id="panRightBtn">→</button>
+        <span id="panValue" style="font-family: monospace;"></span>
+      </div>
+      <button id="ptzResetBtn" style="margin-top: 10px;">リセット</button>
+    </div>
   </div>
   
   <div id="callControls" style="display: none;">
