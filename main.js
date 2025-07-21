@@ -570,14 +570,14 @@ function populateSenderStats(stats, dataToRecord) {
       dataToRecord.nack_count = report.nackCount;
     }
     if (report.type === 'remote-inbound-rtp' && report.mediaType === 'video') {
-      dataToRecord.receiver_jitter_ms = (report.jitter * 1000)?.toFixed(3) ?? 'N/A';
+      dataToRecord.receiver_jitter_ms = (report.jitter * 1000)?.toFixed(4) ?? 'N/A';
       dataToRecord.receiver_packets_lost = report.packetsLost;
       dataToRecord.receiver_fraction_lost = report.fractionLost;
-      dataToRecord.rtt_rtcp_ms = (report.roundTripTime * 1000)?.toFixed(3) ?? 'N/A';
+      dataToRecord.rtt_rtcp_ms = (report.roundTripTime * 1000)?.toFixed(4) ?? 'N/A';
     }
     if (report.type === 'candidate-pair' && report.nominated && report.state === 'succeeded') {
       dataToRecord.available_outgoing_bitrate_kbps = report.availableOutgoingBitrate ? Math.round(report.availableOutgoingBitrate / 1000) : 'N/A';
-      dataToRecord.rtt_ice_ms = (report.currentRoundTripTime * 1000)?.toFixed(3) ?? 'N/A';
+      dataToRecord.rtt_ice_ms = (report.currentRoundTripTime * 1000)?.toFixed(4) ?? 'N/A';
     }
   });
 }
@@ -598,7 +598,7 @@ function populateReceiverStats(stats, dataToRecord) {
       dataToRecord.received_fps = report.framesPerSecond;
       dataToRecord.received_bitrate_kbps = Math.round((Math.max(0, bytesReceived) * 8) / 1000);
       dataToRecord.packets_received_per_second = Math.max(0, packetsReceived);
-      dataToRecord.jitter_ms = (report.jitter * 1000)?.toFixed(3) ?? 'N/A';
+      dataToRecord.jitter_ms = (report.jitter * 1000)?.toFixed(4) ?? 'N/A';
       dataToRecord.packets_lost = report.packetsLost;
       dataToRecord.frames_dropped = report.framesDropped;
       dataToRecord.total_decode_time_s = report.totalDecodeTime;
