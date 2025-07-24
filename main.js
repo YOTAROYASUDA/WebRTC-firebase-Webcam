@@ -578,6 +578,11 @@ function populateSenderStats(stats, dataToRecord) {
     if (report.type === 'candidate-pair' && report.nominated && report.state === 'succeeded') {
       dataToRecord.available_outgoing_bitrate_kbps = report.availableOutgoingBitrate ? Math.round(report.availableOutgoingBitrate / 1000) : 'N/A';
       dataToRecord.rtt_ice_ms = (report.currentRoundTripTime * 1000)?.toFixed(4) ?? 'N/A';
+      const remoteCandidate = stats.get(report.remoteCandidateId);
+      if (remoteCandidate && remoteCandidate.candidateType) {
+        // remoteCandidate.candidateTypeの値を直接記録するように変更
+        dataToRecord.connection_type = remoteCandidate.candidateType;
+      }
     }
   });
 }
@@ -607,6 +612,13 @@ function populateReceiverStats(stats, dataToRecord) {
       dataToRecord.fir_count = report.firCount;
       dataToRecord.pli_count = report.pliCount;
       dataToRecord.jitter_buffer_emitted_count = report.jitterBufferEmittedCount;
+    }
+    if (report.type === 'candidate-pair' && report.nominated && report.state === 'succeeded') {
+      const remoteCandidate = stats.get(report.remoteCandidateId);
+      if (remoteCandidate && remoteCandidate.candidateType) {
+        // remoteCandidate.candidateTypeの値を直接記録するように変更
+        dataToRecord.connection_type = remoteCandidate.candidateType;
+      }
     }
   });
 }
