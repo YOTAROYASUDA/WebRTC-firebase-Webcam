@@ -12,16 +12,76 @@
       margin-bottom: 15px;
     }
     video {
-      width: 640px;
-      height: 360px;
+      /* ▼▼▼ 変更点 ▼▼▼ */
+      width: 100%;
+      height: 100%;
+      /* ▲▲▲ 変更点 ▲▲▲ */
       object-fit: cover;
       background-color: black;
-      border: 1px solid #ccc;
-      margin-top: 5px;
     }
-    #localVideo, #remoteVideo {
+    #localVideo {
         display: none;
+        border: 1px solid #ccc;
+        /* ▼▼▼ 変更点 ▼▼▼ */
+        width: 640px;
+        height: 360px;
+        /* ▲▲▲ 変更点 ▲▲▲ */
     }
+    #remoteVideoContainer {
+        position: relative;
+        display: none; /* 最初は非表示 */
+        width: 640px;
+        height: 360px;
+        background-color: black;
+        border: 1px solid #ccc;
+        margin-top: 5px;
+    }
+    #resolutionDisplay {
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        background-color: rgba(0, 0, 0, 0.6);
+        color: white;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 14px;
+        font-family: monospace;
+        pointer-events: none; /* マウスイベントをビデオに透過させる */
+        display: none; /* 最初は非表示 */
+        z-index: 2;
+    }
+    /* ▼▼▼ 追加 ▼▼▼ */
+    #fullscreenBtn {
+        position: absolute;
+        bottom: 10px;
+        right: 10px;
+        z-index: 2;
+        padding: 6px 10px;
+        background-color: rgba(0, 0, 0, 0.5);
+        color: white;
+        border: 1px solid white;
+        border-radius: 4px;
+        cursor: pointer;
+        opacity: 0.7;
+        transition: opacity 0.2s;
+    }
+    #fullscreenBtn:hover {
+        opacity: 1;
+    }
+    /* フルスクリーン時のスタイル */
+    #remoteVideoContainer:fullscreen {
+        width: 100vw;
+        height: 100vh;
+        border: none;
+        margin-top: 0;
+    }
+    #remoteVideoContainer:fullscreen #resolutionDisplay {
+        font-size: 18px;
+    }
+    #remoteVideoContainer:fullscreen #fullscreenBtn {
+        font-size: 16px;
+    }
+    /* ▲▲▲ 追加 ▲▲▲ */
     #statsControls {
       margin-top: 20px;
       border-top: 1px solid #eee;
@@ -73,7 +133,7 @@
     <button id="joinCall">通話に参加</button>
 
     <div id="ptzControls" style="display: none; margin-top: 10px; border: 1px solid #ccc; padding: 10px;">
-      <h4>PTZ 操作</h4>
+      <h4>PTZ 操作 (矢印キーでも操作可能)</h4>
       <div>
         <strong>ズーム:</strong>
         <button id="zoomOutBtn">-</button>
@@ -107,7 +167,13 @@
 
   <div id="videoArea">
       <video id="localVideo" autoplay playsinline muted></video>
-      <video id="remoteVideo" autoplay playsinline></video>
+      <div id="remoteVideoContainer">
+          <video id="remoteVideo" autoplay playsinline></video>
+          <div id="resolutionDisplay"></div>
+          <!-- ▼▼▼ 追加 ▼▼▼ -->
+          <button id="fullscreenBtn">フルスクリーン</button>
+          <!-- ▲▲▲ 追加 ▲▲▲ -->
+      </div>
   </div>
 
   <div id="statsControls" style="display: none;">

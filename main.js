@@ -48,6 +48,9 @@ const copyCallIdBtn = document.getElementById("copyCallId");
 
 const localVideo = document.getElementById("localVideo");
 const remoteVideo = document.getElementById("remoteVideo");
+const remoteVideoContainer = document.getElementById("remoteVideoContainer");
+const resolutionDisplay = document.getElementById("resolutionDisplay");
+const fullscreenBtn = document.getElementById("fullscreenBtn");
 
 // Stats-related elements
 const startStatsRecordingBtn = document.getElementById("startStatsRecording");
@@ -85,6 +88,9 @@ let recordedStats = [];
 let isRecordingStats = false;
 let currentRole = "sender";
 let lastStatsReport = null;
+// ▼▼▼ 追加 ▼▼▼
+let resolutionUpdateInterval = null;
+// ▲▲▲ 追加 ▲▲▲
 
 // =================================================================================
 // --- UI関連の関数 (UI Functions) ---
@@ -97,7 +103,8 @@ function resetUI() {
   localVideo.srcObject = null;
   remoteVideo.srcObject = null;
   localVideo.style.display = 'none';
-  remoteVideo.style.display = 'none';
+  remoteVideoContainer.style.display = 'none';
+  resolutionDisplay.style.display = 'none';
 
   ptzControls.style.display = "none";
   callControls.style.display = "none";
@@ -121,6 +128,13 @@ function resetUI() {
     ptzChannel.close();
     ptzChannel = null;
   }
+  
+  // ▼▼▼ 追加 ▼▼▼
+  if (resolutionUpdateInterval) {
+    clearInterval(resolutionUpdateInterval);
+    resolutionUpdateInterval = null;
+  }
+  // ▲▲▲ 追加 ▲▲▲
 }
 
 /**
@@ -149,6 +163,21 @@ function createPeerConnection() {
     console.log(`PeerConnection state changed to: ${pc.connectionState}`);
     const isConnected = pc.connectionState === 'connected';
     statsControls.style.display = isConnected ? 'block' : 'none';
+
+    // ▼▼▼ 変更点: 解像度表示のロジックをここに移動 ▼▼▼
+    if (isConnected && currentRole === 'receiver') {
+      if (!resolutionUpdateInterval) {
+        resolutionUpdateInterval = setInterval(updateResolutionDisplay, 1000);
+      }
+    } else {
+      if (resolutionUpdateInterval) {
+        clearInterval(resolutionUpdateInterval);
+        resolutionUpdateInterval = null;
+      }
+      resolutionDisplay.style.display = 'none';
+    }
+    // ▲▲▲ 変更点 ▲▲▲
+
     if (!isConnected) {
       stopStatsRecording();
     }
@@ -188,6 +217,12 @@ function preferCodec(sdp, codecName) {
  */
 async function hangUp() {
   stopStatsRecording();
+  // ▼▼▼ 追加 ▼▼▼
+  if (resolutionUpdateInterval) {
+    clearInterval(resolutionUpdateInterval);
+    resolutionUpdateInterval = null;
+  }
+  // ▲▲▲ 追加 ▲▲▲
 
   if (localStream) {
     localStream.getTracks().forEach(track => track.stop());
@@ -269,10 +304,8 @@ async function startCall() {
     peerConnection = createPeerConnection();
     localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
     
-    // PTZ用データチャネルを作成
     setupPtzDataChannel();
 
-    // Firestoreのドキュメント参照を作成
     callDocRef = doc(collection(db, "calls"));
     const offerCandidates = collection(callDocRef, "offerCandidates");
     const answerCandidates = collection(callDocRef, "answerCandidates");
@@ -289,7 +322,6 @@ async function startCall() {
     callIdDisplay.textContent = callDocRef.id;
     callControls.style.display = "block";
 
-    // Answerを待機
     onSnapshot(callDocRef, snapshot => {
       const data = snapshot.data();
       if (data?.answer && !peerConnection.currentRemoteDescription) {
@@ -366,10 +398,9 @@ async function joinCall() {
     const offerCandidates = collection(callDocRef, "offerCandidates");
     const answerCandidates = collection(callDocRef, "answerCandidates");
 
-    // リモートトラックとデータチャネルのイベントをリッスン
     peerConnection.ontrack = event => {
       remoteVideo.srcObject = event.streams[0];
-      remoteVideo.style.display = 'block';
+      remoteVideoContainer.style.display = 'inline-block';
     };
     peerConnection.ondatachannel = handleReceiverDataChannel;
     
@@ -460,8 +491,7 @@ function setupReceiverPtzControls(capabilities) {
     const slider = document.getElementById(`${type}Slider`);
     const valueDisplay = document.getElementById(`${type}Value`);
     
-    // ボタンの有効/無効化
-    document.querySelectorAll(`[data-ptz-type="${type}"]`).forEach(btn => btn.disabled = !isSupported);
+    document.querySelectorAll(`button[id$="${type.charAt(0).toUpperCase() + type.slice(1)}Btn"]`).forEach(btn => btn.disabled = !isSupported);
     if(slider) slider.disabled = !isSupported;
 
     if (isSupported) {
@@ -469,7 +499,6 @@ function setupReceiverPtzControls(capabilities) {
       slider.min = min;
       slider.max = max;
       slider.step = step;
-      // Pan/Tiltは中央を初期値に、Zoomは最小値を初期値に設定
       const initialValue = (type === 'pan' || type === 'tilt') && min < 0 && max > 0 ? 0 : min;
       slider.value = initialValue;
       valueDisplay.textContent = parseFloat(initialValue).toFixed(2);
@@ -508,8 +537,40 @@ function sendPtzCommand(type, value) {
 
 
 // =================================================================================
-// --- 統計情報関連の関数 (Statistics Functions) ---
+// --- 統計情報関連 & 解像度表示の関数 (Statistics & Resolution Functions) ---
 // =================================================================================
+
+// ▼▼▼ 追加: 解像度を自動更新するための専用関数 ▼▼▼
+/**
+ * 定期的に受信映像の解像度を取得して表示を更新します。
+ */
+async function updateResolutionDisplay() {
+    if (!peerConnection || currentRole !== 'receiver' || peerConnection.connectionState !== 'connected') {
+        return;
+    }
+
+    try {
+        const stats = await peerConnection.getStats();
+        let resolutionFound = false;
+        stats.forEach(report => {
+            if (report.type === 'inbound-rtp' && report.mediaType === 'video') {
+                if (report.frameWidth && report.frameHeight) {
+                    resolutionDisplay.textContent = `${report.frameWidth} x ${report.frameHeight}`;
+                    resolutionDisplay.style.display = 'block';
+                    resolutionFound = true;
+                }
+            }
+        });
+
+        if (!resolutionFound) {
+            resolutionDisplay.style.display = 'none';
+        }
+    } catch (error) {
+        console.error("Error getting stats for resolution display:", error);
+        resolutionDisplay.style.display = 'none';
+    }
+}
+// ▲▲▲ 追加 ▲▲▲
 
 /**
  * 統計情報の記録を開始します。
@@ -580,7 +641,6 @@ function populateSenderStats(stats, dataToRecord) {
       dataToRecord.rtt_ice_ms = (report.currentRoundTripTime * 1000)?.toFixed(4) ?? 'N/A';
       const remoteCandidate = stats.get(report.remoteCandidateId);
       if (remoteCandidate && remoteCandidate.candidateType) {
-        // remoteCandidate.candidateTypeの値を直接記録するように変更
         dataToRecord.connection_type = remoteCandidate.candidateType;
       }
     }
@@ -599,7 +659,10 @@ function populateReceiverStats(stats, dataToRecord) {
       const bytesReceived = report.bytesReceived - (lastInboundReport?.bytesReceived ?? 0);
       const packetsReceived = report.packetsReceived - (lastInboundReport?.packetsReceived ?? 0);
       
+      // ▼▼▼ 変更点: 表示ロジックを削除し、データ記録のみ残す ▼▼▼
       dataToRecord.received_resolution = `${report.frameWidth}x${report.frameHeight}`;
+      // ▲▲▲ 変更点 ▲▲▲
+      
       dataToRecord.received_fps = report.framesPerSecond;
       dataToRecord.received_bitrate_kbps = Math.round((Math.max(0, bytesReceived) * 8) / 1000);
       dataToRecord.packets_received_per_second = Math.max(0, packetsReceived);
@@ -616,7 +679,6 @@ function populateReceiverStats(stats, dataToRecord) {
     if (report.type === 'candidate-pair' && report.nominated && report.state === 'succeeded') {
       const remoteCandidate = stats.get(report.remoteCandidateId);
       if (remoteCandidate && remoteCandidate.candidateType) {
-        // remoteCandidate.candidateTypeの値を直接記録するように変更
         dataToRecord.connection_type = remoteCandidate.candidateType;
       }
     }
@@ -636,7 +698,7 @@ function stopStatsRecording() {
 
   startStatsRecordingBtn.disabled = false;
   stopStatsRecordingBtn.disabled = true;
-  downloadStatsBtn.disabled = recordedStats.length === 0;
+  downloadStatsBtn.disabled = recordedStats.length > 0;
   statsDisplay.textContent = `記録停止。${recordedStats.length} 個`;
 }
 
@@ -705,12 +767,10 @@ function initializeEventListeners() {
   joinCallBtn.addEventListener("click", joinCall);
   hangUpBtn.addEventListener("click", hangUp);
   
-  // Stats listeners
   startStatsRecordingBtn.addEventListener("click", startStatsRecording);
   stopStatsRecordingBtn.addEventListener("click", stopStatsRecording);
   downloadStatsBtn.addEventListener("click", downloadStatsAsCsv);
 
-  // PTZ listeners
   const getSliderValue = (type) => parseFloat(document.getElementById(`${type}Slider`).value);
   
   zoomInBtn.addEventListener("click", () => sendPtzCommand('zoom', getSliderValue('zoom') + ptzCapabilities.zoom.step));
@@ -730,13 +790,72 @@ function initializeEventListeners() {
     if (ptzCapabilities.tilt) sendPtzCommand('tilt', 0);
     if (ptzCapabilities.pan) sendPtzCommand('pan', 0);
   });
+
+  document.addEventListener('keydown', (event) => {
+    if (currentRole !== 'receiver' || ptzControls.style.display === 'none') {
+        return;
+    }
+    if (['INPUT', 'SELECT', 'TEXTAREA'].includes(document.activeElement.tagName)) {
+        return;
+    }
+
+    const getSliderValue = (type) => parseFloat(document.getElementById(`${type}Slider`).value);
+    let commandSent = false;
+
+    switch (event.key) {
+        case 'ArrowUp':
+            if (ptzCapabilities.tilt) {
+                sendPtzCommand('tilt', getSliderValue('tilt') + ptzCapabilities.tilt.step);
+                commandSent = true;
+            }
+            break;
+        case 'ArrowDown':
+            if (ptzCapabilities.tilt) {
+                sendPtzCommand('tilt', getSliderValue('tilt') - ptzCapabilities.tilt.step);
+                commandSent = true;
+            }
+            break;
+        case 'ArrowLeft':
+            if (ptzCapabilities.pan) {
+                sendPtzCommand('pan', getSliderValue('pan') - ptzCapabilities.pan.step);
+                commandSent = true;
+            }
+            break;
+        case 'ArrowRight':
+            if (ptzCapabilities.pan) {
+                sendPtzCommand('pan', getSliderValue('pan') + ptzCapabilities.pan.step);
+                commandSent = true;
+            }
+            break;
+    }
+
+    if (commandSent) {
+        event.preventDefault();
+    }
+  });
+
+  fullscreenBtn.addEventListener('click', () => {
+    if (!document.fullscreenElement) {
+        remoteVideoContainer.requestFullscreen().catch(err => {
+            alert(`フルスクリーンにできませんでした: ${err.message} (${err.name})`);
+        });
+    } else {
+        document.exitFullscreen();
+    }
+  });
+
+  document.addEventListener('fullscreenchange', () => {
+    if (document.fullscreenElement === remoteVideoContainer) {
+        fullscreenBtn.textContent = '通常表示';
+    } else {
+        fullscreenBtn.textContent = 'フルスクリーン';
+    }
+  });
 }
 
 // =================================================================================
 // --- 初期化 (Initialization) ---
 // =================================================================================
 
-// 初期UI状態を設定
 updateRoleUI(document.querySelector('input[name="role"]:checked').value);
-// イベントリスナーを起動
 initializeEventListeners();
