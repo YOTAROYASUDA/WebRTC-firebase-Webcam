@@ -685,7 +685,10 @@ function stopStatsRecording() {
 
   startStatsRecordingBtn.disabled = false;
   stopStatsRecordingBtn.disabled = true;
-  downloadStatsBtn.disabled = recordedStats.length > 0;
+  // ▼▼▼ 変更点: ボタンの disabled 判定ロジックを修正 ▼▼▼
+  // 記録されたデータが 0 件の場合に disabled (true) になるように修正
+  downloadStatsBtn.disabled = recordedStats.length === 0;
+  // ▲▲▲ 変更点 ▲▲▲
   statsDisplay.textContent = `記録停止。${recordedStats.length} 個`;
 }
 
@@ -778,8 +781,10 @@ function initializeEventListeners() {
     if (ptzCapabilities.pan) sendPtzCommand('pan', 0);
   });
 
-  // ▼▼▼ 変更点: PTZキーボード操作の拡張 ▼▼▼
-  document.addEventListener('keydown', (event) => {
+  // ▼▼▼ 変更点: PTZキーボード操作の拡張とフルスクリーン対応 ▼▼▼
+  // イベントリスナーを document から window に変更。
+  // これにより、要素がフルスクリーンモードの時でもキーボードイベントを捕捉しやすくなります。
+  window.addEventListener('keydown', (event) => {
     if (currentRole !== 'receiver' || ptzControls.style.display === 'none') {
         return;
     }
