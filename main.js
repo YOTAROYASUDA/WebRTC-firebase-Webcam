@@ -95,7 +95,7 @@ let resolutionUpdateInterval = null;
 // =================================================================================
 
 /**
- * UIの状態を初期状態にリセットします。
+ * UIの状態を初期状態にリセットする。
  */
 function resetUI() {
   localVideo.srcObject = null;
@@ -134,7 +134,7 @@ function resetUI() {
 }
 
 /**
- * 役割（送信者/受信者）の変更に応じてUIを更新します。
+ * 役割（送信者/受信者）の変更に応じてUIを更新する。
  * @param {string} role - 'sender' または 'receiver'
  */
 function updateRoleUI(role) {
@@ -149,7 +149,7 @@ function updateRoleUI(role) {
 // =================================================================================
 
 /**
- * RTCPeerConnectionインスタンスを作成し、イベントハンドラを設定します。
+ * RTCPeerConnectionインスタンスを作成し、イベントハンドラを設定する。
  * @returns {RTCPeerConnection} RTCPeerConnectionのインスタンス
  */
 function createPeerConnection() {
@@ -181,7 +181,7 @@ function createPeerConnection() {
 }
 
 /**
- * SDP（Session Description Protocol）を操作して、指定されたコーデックを優先します。
+ * SDP（Session Description Protocol）を操作して、指定されたコーデックを優先する。
  * @param {string} sdp - 元のSDP
  * @param {string} codecName - 優先するコーデック名 (e.g., 'H264', 'VP9')
  * @returns {string} 変更されたSDP
@@ -207,7 +207,7 @@ function preferCodec(sdp, codecName) {
 }
 
 /**
- * 通話を終了し、すべてのリソースをクリーンアップします。
+ * 通話を終了し、すべてのリソースをクリーンアップする。
  */
 async function hangUp() {
   stopStatsRecording();
@@ -236,7 +236,7 @@ async function hangUp() {
 }
 
 /**
- * ICE Candidateをリッスンし、Firestoreに保存します。
+ * ICE Candidateをリッスンし、Firestoreに保存する。
  * @param {RTCPeerConnection} pc - RTCPeerConnectionインスタンス
  * @param {CollectionReference} candidateCollection - ICE Candidateを保存するFirestoreコレクション
  */
@@ -249,7 +249,7 @@ function handleIceCandidates(pc, candidateCollection) {
 }
 
 /**
- * 相手のICE Candidateをリッスンし、PeerConnectionに追加します。
+ * 相手のICE Candidateをリッスンし、PeerConnectionに追加する。
  * @param {CollectionReference} candidateCollection - 相手のICE Candidateが保存されているFirestoreコレクション
  */
 function listenForRemoteCandidates(candidateCollection) {
@@ -269,7 +269,7 @@ function listenForRemoteCandidates(candidateCollection) {
 // =================================================================================
 
 /**
- * カメラを起動し、WebRTCのOfferを作成して通話を開始します。
+ * カメラを起動し、WebRTCのOfferを作成して通話を開始する。
  */
 async function startCall() {
   startCameraBtn.disabled = true;
@@ -329,7 +329,7 @@ async function startCall() {
 }
 
 /**
- * PTZコントロール用のデータチャネルを設定します。
+ * PTZコントロール用のデータチャネルを設定する。
  */
 function setupPtzDataChannel() {
   console.log("SENDER: Creating DataChannel 'ptz'...");
@@ -364,7 +364,7 @@ function setupPtzDataChannel() {
 // =================================================================================
 
 /**
- * Call IDを使って既存の通話に参加します。
+ * Call IDを使って既存の通話に参加する。
  */
 async function joinCall() {
   const callId = callIdInput.value.trim();
@@ -419,7 +419,7 @@ async function joinCall() {
 }
 
 /**
- * 受信者側でデータチャネルイベントを処理します。
+ * 受信者側でデータチャネルイベントを処理する。
  * @param {RTCDataChannelEvent} event 
  */
 function handleReceiverDataChannel(event) {
@@ -448,7 +448,7 @@ function handleReceiverDataChannel(event) {
 // =================================================================================
 
 /**
- * 送信者側で、カメラにPTZの制約を適用します。
+ * 送信者側で、カメラにPTZの制約を適用する。
  * @param {string} type - 'pan', 'tilt', or 'zoom'
  * @param {number} value - 適用する値
  */
@@ -471,7 +471,7 @@ async function applyPtzConstraint(type, value) {
 }
 
 /**
- * 受信者側でPTZコントロールUIをセットアップします。
+ * 受信者側でPTZコントロールUIをセットアップする。
  * @param {object} capabilities - カメラから送られてきたPTZ機能
  */
 function setupReceiverPtzControls(capabilities) {
@@ -499,7 +499,7 @@ function setupReceiverPtzControls(capabilities) {
 }
 
 /**
- * 受信者側からPTZコマンドを送信します。
+ * 受信者側からPTZコマンドを送信する。
  * @param {string} type - 'pan', 'tilt', or 'zoom'
  * @param {number} value - 送信する値
  */
@@ -533,7 +533,7 @@ function sendPtzCommand(type, value) {
 // =================================================================================
 
 /**
- * 定期的に受信映像の解像度を取得して表示を更新します。
+ * 定期的に受信映像の解像度を取得して表示を更新する。
  */
 async function updateResolutionDisplay() {
     if (!peerConnection || currentRole !== 'receiver' || peerConnection.connectionState !== 'connected') {
@@ -563,7 +563,7 @@ async function updateResolutionDisplay() {
 }
 
 /**
- * 統計情報の記録を開始します。
+ * 統計情報の記録を開始する。
  */
 function startStatsRecording() {
   if (!peerConnection || isRecordingStats) return;
@@ -598,7 +598,7 @@ function startStatsRecording() {
 }
 
 /**
- * 送信者側の統計情報を収集します。
+ * 送信者側の統計情報を収集する。
  * @param {RTCStatsReport} stats - getStats()から取得したレポート
  * @param {object} dataToRecord - 記録するデータを格納するオブジェクト
  */
@@ -638,7 +638,7 @@ function populateSenderStats(stats, dataToRecord) {
 }
 
 /**
- * 受信者側の統計情報を収集します。
+ * 受信者側の統計情報を収集する。
  * @param {RTCStatsReport} stats - getStats()から取得したレポート
  * @param {object} dataToRecord - 記録するデータを格納するオブジェクト
  */
@@ -674,7 +674,7 @@ function populateReceiverStats(stats, dataToRecord) {
 
 
 /**
- * 統計情報の記録を停止します。
+ * 統計情報の記録を停止する。
  */
 function stopStatsRecording() {
   if (!isRecordingStats) return;
@@ -685,15 +685,12 @@ function stopStatsRecording() {
 
   startStatsRecordingBtn.disabled = false;
   stopStatsRecordingBtn.disabled = true;
-  // ▼▼▼ 変更点: ボタンの disabled 判定ロジックを修正 ▼▼▼
-  // 記録されたデータが 0 件の場合に disabled (true) になるように修正
   downloadStatsBtn.disabled = recordedStats.length === 0;
-  // ▲▲▲ 変更点 ▲▲▲
   statsDisplay.textContent = `記録停止。${recordedStats.length} 個`;
 }
 
 /**
- * 記録した統計情報をCSVファイルとしてダウンロードします。
+ * 記録した統計情報をCSVファイルとしてダウンロードする。
  */
 function downloadStatsAsCsv() {
   if (recordedStats.length === 0) {
@@ -733,7 +730,7 @@ function downloadStatsAsCsv() {
 // =================================================================================
 
 /**
- * アプリケーションのすべてのイベントリスナーを初期化します。
+ * アプリケーションのすべてのイベントリスナーを初期化する。
  */
 function initializeEventListeners() {
   roleInputs.forEach(input => {
@@ -781,9 +778,6 @@ function initializeEventListeners() {
     if (ptzCapabilities.pan) sendPtzCommand('pan', 0);
   });
 
-  // ▼▼▼ 変更点: PTZキーボード操作の拡張とフルスクリーン対応 ▼▼▼
-  // イベントリスナーを document から window に変更。
-  // これにより、要素がフルスクリーンモードの時でもキーボードイベントを捕捉しやすくなります。
   window.addEventListener('keydown', (event) => {
     if (currentRole !== 'receiver' || ptzControls.style.display === 'none') {
         return;
@@ -847,7 +841,6 @@ function initializeEventListeners() {
         event.preventDefault();
     }
   });
-  // ▲▲▲ 変更点 ▲▲▲
 
   fullscreenBtn.addEventListener('click', () => {
     if (!document.fullscreenElement) {
