@@ -88,9 +88,7 @@ let recordedStats = [];
 let isRecordingStats = false;
 let currentRole = "sender";
 let lastStatsReport = null;
-// ▼▼▼ 追加 ▼▼▼
 let resolutionUpdateInterval = null;
-// ▲▲▲ 追加 ▲▲▲
 
 // =================================================================================
 // --- UI関連の関数 (UI Functions) ---
@@ -129,12 +127,10 @@ function resetUI() {
     ptzChannel = null;
   }
   
-  // ▼▼▼ 追加 ▼▼▼
   if (resolutionUpdateInterval) {
     clearInterval(resolutionUpdateInterval);
     resolutionUpdateInterval = null;
   }
-  // ▲▲▲ 追加 ▲▲▲
 }
 
 /**
@@ -164,7 +160,6 @@ function createPeerConnection() {
     const isConnected = pc.connectionState === 'connected';
     statsControls.style.display = isConnected ? 'block' : 'none';
 
-    // ▼▼▼ 変更点: 解像度表示のロジックをここに移動 ▼▼▼
     if (isConnected && currentRole === 'receiver') {
       if (!resolutionUpdateInterval) {
         resolutionUpdateInterval = setInterval(updateResolutionDisplay, 1000);
@@ -176,7 +171,6 @@ function createPeerConnection() {
       }
       resolutionDisplay.style.display = 'none';
     }
-    // ▲▲▲ 変更点 ▲▲▲
 
     if (!isConnected) {
       stopStatsRecording();
@@ -217,12 +211,10 @@ function preferCodec(sdp, codecName) {
  */
 async function hangUp() {
   stopStatsRecording();
-  // ▼▼▼ 追加 ▼▼▼
   if (resolutionUpdateInterval) {
     clearInterval(resolutionUpdateInterval);
     resolutionUpdateInterval = null;
   }
-  // ▲▲▲ 追加 ▲▲▲
 
   if (localStream) {
     localStream.getTracks().forEach(track => track.stop());
@@ -540,7 +532,6 @@ function sendPtzCommand(type, value) {
 // --- 統計情報関連 & 解像度表示の関数 (Statistics & Resolution Functions) ---
 // =================================================================================
 
-// ▼▼▼ 追加: 解像度を自動更新するための専用関数 ▼▼▼
 /**
  * 定期的に受信映像の解像度を取得して表示を更新します。
  */
@@ -570,7 +561,6 @@ async function updateResolutionDisplay() {
         resolutionDisplay.style.display = 'none';
     }
 }
-// ▲▲▲ 追加 ▲▲▲
 
 /**
  * 統計情報の記録を開始します。
@@ -659,10 +649,7 @@ function populateReceiverStats(stats, dataToRecord) {
       const bytesReceived = report.bytesReceived - (lastInboundReport?.bytesReceived ?? 0);
       const packetsReceived = report.packetsReceived - (lastInboundReport?.packetsReceived ?? 0);
       
-      // ▼▼▼ 変更点: 表示ロジックを削除し、データ記録のみ残す ▼▼▼
       dataToRecord.received_resolution = `${report.frameWidth}x${report.frameHeight}`;
-      // ▲▲▲ 変更点 ▲▲▲
-      
       dataToRecord.received_fps = report.framesPerSecond;
       dataToRecord.received_bitrate_kbps = Math.round((Math.max(0, bytesReceived) * 8) / 1000);
       dataToRecord.packets_received_per_second = Math.max(0, packetsReceived);
@@ -791,6 +778,7 @@ function initializeEventListeners() {
     if (ptzCapabilities.pan) sendPtzCommand('pan', 0);
   });
 
+  // ▼▼▼ 変更点: PTZキーボード操作の拡張 ▼▼▼
   document.addEventListener('keydown', (event) => {
     if (currentRole !== 'receiver' || ptzControls.style.display === 'none') {
         return;
@@ -827,12 +815,34 @@ function initializeEventListeners() {
                 commandSent = true;
             }
             break;
+        case '+':
+        case 'PageUp':
+             if (ptzCapabilities.zoom) {
+                sendPtzCommand('zoom', getSliderValue('zoom') + ptzCapabilities.zoom.step);
+                commandSent = true;
+            }
+            break;
+        case '-':
+        case 'PageDown':
+            if (ptzCapabilities.zoom) {
+                sendPtzCommand('zoom', getSliderValue('zoom') - ptzCapabilities.zoom.step);
+                commandSent = true;
+            }
+            break;
+        case 'r':
+        case 'R':
+            if (ptzCapabilities.zoom) sendPtzCommand('zoom', ptzCapabilities.zoom.min);
+            if (ptzCapabilities.tilt) sendPtzCommand('tilt', 0);
+            if (ptzCapabilities.pan) sendPtzCommand('pan', 0);
+            commandSent = true;
+            break;
     }
 
     if (commandSent) {
         event.preventDefault();
     }
   });
+  // ▲▲▲ 変更点 ▲▲▲
 
   fullscreenBtn.addEventListener('click', () => {
     if (!document.fullscreenElement) {
