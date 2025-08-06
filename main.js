@@ -284,7 +284,7 @@ async function startCall() {
         tilt: true, 
         zoom: true 
     },
-    audio: true
+    audio: false
   };
 
   try {
