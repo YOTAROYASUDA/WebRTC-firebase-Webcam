@@ -36,6 +36,7 @@ const callControls = document.getElementById("callControls");
 const statsControls = document.getElementById("statsControls");
 const ptzControls = document.getElementById("ptzControls");
 
+const cameraSelect = document.getElementById("cameraSelect");
 const resolutionSelect = document.getElementById("resolution");
 const framerateSelect = document.getElementById("framerate");
 const codecSelect = document.getElementById("codecSelect");
@@ -142,6 +143,42 @@ function updateRoleUI(role) {
   senderControls.style.display = role === "sender" ? "block" : "none";
   receiverControls.style.display = role === "receiver" ? "block" : "none";
   resetUI();
+}
+
+// main.js の UI Functions セクションなど、適切な場所に追加
+
+/**
+ * 利用可能なカメラデバイスをリストアップし、選択メニューを生成する。
+ */
+async function populateCameraList() {
+  try {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const videoDevices = devices.filter(device => device.kind === 'videoinput');
+
+    // 以前の選択肢をクリア
+    cameraSelect.innerHTML = '';
+
+    if (videoDevices.length === 0) {
+      cameraSelect.innerHTML = '<option>カメラが見つかりません</option>';
+      cameraSelect.disabled = true;
+      startCameraBtn.disabled = true;
+      return;
+    }
+
+    videoDevices.forEach((device, index) => {
+      const option = document.createElement('option');
+      option.value = device.deviceId;
+      // デバイス名が空の場合のフォールバック
+      option.text = device.label || `カメラ ${index + 1}`;
+      cameraSelect.appendChild(option);
+    });
+    cameraSelect.disabled = false;
+    startCameraBtn.disabled = false;
+
+  } catch (error) {
+    console.error("Error enumerating devices:", error);
+    alert("カメラデバイスの取得に失敗しました。");
+  }
 }
 
 // =================================================================================
@@ -276,8 +313,10 @@ async function startCall() {
   const selectedResolution = resolutionSelect.value;
   const selectedFramerate = parseInt(framerateSelect.value, 10);
   const selectedCodec = codecSelect.value;
+  const selectedCameraId = cameraSelect.value; 
   const constraints = {
     video: { 
+        deviceId: { exact: selectedCameraId },
         ...RESOLUTIONS[selectedResolution], 
         frameRate: { ideal: selectedFramerate},
         pan: true, 
@@ -867,3 +906,4 @@ function initializeEventListeners() {
 
 updateRoleUI(document.querySelector('input[name="role"]:checked').value);
 initializeEventListeners();
+populateCameraList();
