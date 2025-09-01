@@ -7,7 +7,8 @@ export const callControls = document.getElementById("callControls");
 export const statsControls = document.getElementById("statsControls");
 export const ptzControls = document.getElementById("ptzControls");
 
-export const cameraSelect = document.getElementById("cameraSelect");
+export const cameraSelect1 = document.getElementById("cameraSelect1");
+export const cameraSelect2 = document.getElementById("cameraSelect2");
 export const resolutionSelect = document.getElementById("resolution");
 export const framerateSelect = document.getElementById("framerate");
 export const codecSelect = document.getElementById("codecSelect");
@@ -18,11 +19,17 @@ export const callIdInput = document.getElementById("callIdInput");
 export const callIdDisplay = document.getElementById("callIdDisplay");
 export const copyCallIdBtn = document.getElementById("copyCallId");
 
-export const localVideo = document.getElementById("localVideo");
-export const remoteVideo = document.getElementById("remoteVideo");
-export const remoteVideoContainer = document.getElementById("remoteVideoContainer");
-export const resolutionDisplay = document.getElementById("resolutionDisplay");
-export const fullscreenBtn = document.getElementById("fullscreenBtn");
+export const localVideo1 = document.getElementById("localVideo1");
+export const localVideo2 = document.getElementById("localVideo2");
+export const remoteVideo1 = document.getElementById("remoteVideo1");
+export const remoteVideo2 = document.getElementById("remoteVideo2");
+export const remoteVideoContainer1 = document.getElementById("remoteVideoContainer1");
+export const remoteVideoContainer2 = document.getElementById("remoteVideoContainer2");
+export const resolutionDisplay1 = document.getElementById("resolutionDisplay1");
+export const resolutionDisplay2 = document.getElementById("resolutionDisplay2");
+export const fullscreenBtn1 = document.getElementById("fullscreenBtn1");
+export const fullscreenBtn2 = document.getElementById("fullscreenBtn2");
+
 
 // Stats-related elements
 export const startStatsRecordingBtn = document.getElementById("startStatsRecording");
@@ -44,3 +51,4 @@ export const panRightBtn = document.getElementById("panRightBtn");
 export const panSlider = document.getElementById("panSlider");
 export const panValue = document.getElementById("panValue");
 export const ptzResetBtn = document.getElementById("ptzResetBtn");
+export const ptzTargetInputs = document.querySelectorAll('input[name="ptzTarget"]');

@@ -7,30 +7,37 @@ import * as uiElements from './ui-elements.js';
  * 定期的に受信映像の解像度を取得して表示を更新する。
  */
 export async function updateResolutionDisplay() {
-    if (!state.peerConnection || state.currentRole !== 'receiver' || state.peerConnection.connectionState !== 'connected') {
-        return;
-    }
+  if (!state.peerConnection || state.currentRole !== 'receiver' || state.peerConnection.connectionState !== 'connected') {
+       return;
+  }
 
-    try {
-        const stats = await state.peerConnection.getStats();
-        let resolutionFound = false;
-        stats.forEach(report => {
-            if (report.type === 'inbound-rtp' && report.mediaType === 'video') {
-                if (report.frameWidth && report.frameHeight) {
-                    uiElements.resolutionDisplay.textContent = `${report.frameWidth} x ${report.frameHeight}`;
-                    uiElements.resolutionDisplay.style.display = 'block';
-                    resolutionFound = true;
-                }
-            }
-        });
+  try {
+      const stats = await state.peerConnection.getStats();
 
-        if (!resolutionFound) {
-            uiElements.resolutionDisplay.style.display = 'none';
-        }
-    } catch (error) {
-        console.error("Error getting stats for resolution display:", error);
-        uiElements.resolutionDisplay.style.display = 'none';
-    }
+      // まず、すべての解像度表示を一旦非表示にする
+      if (state.remoteTracks) {
+          Object.values(state.remoteTracks).forEach(display => {
+              if (display) display.style.display = 'none';
+          });
+      }
+        
+      stats.forEach(report => {
+          // 受信中のビデオストリームに関するレポートをフィルタリング
+          if (report.type === 'inbound-rtp' && report.mediaType === 'video' && state.remoteTracks) {
+              // レポートの trackIdentifier (トラックID) を使って、対応するUI要素を取得
+              const displayElement = state.remoteTracks[report.trackIdentifier];
+                
+              // 対応するUI要素があり、解像度の情報があれば表示を更新
+              if (displayElement && report.frameWidth && report.frameHeight) {
+                  displayElement.textContent = `${report.frameWidth} x ${report.frameHeight}`;
+                  displayElement.style.display = 'block';
+              }
+          }
+      });
+
+  } catch (error) {
+      console.error("Error getting stats for resolution display:", error);
+  }
 }
 
 /**

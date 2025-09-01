@@ -7,11 +7,16 @@ import * as uiElements from './ui-elements.js';
  * UIの状態を初期状態にリセットする。
  */
 export function resetUI() {
-  uiElements.localVideo.srcObject = null;
-  uiElements.remoteVideo.srcObject = null;
-  uiElements.localVideo.style.display = 'none';
-  uiElements.remoteVideoContainer.style.display = 'none';
-  uiElements.resolutionDisplay.style.display = 'none';
+  uiElements.localVideo1.srcObject = null;
+  uiElements.localVideo2.srcObject = null;
+  uiElements.remoteVideo1.srcObject = null;
+  uiElements.remoteVideo2.srcObject = null;
+  uiElements.localVideo1.style.display = 'none';
+  uiElements.localVideo2.style.display = 'none';
+  uiElements.remoteVideoContainer1.style.display = 'none';
+  uiElements.remoteVideoContainer2.style.display = 'none';
+  uiElements.resolutionDisplay1.style.display = 'none';
+  uiElements.resolutionDisplay2.style.display = 'none';
 
   uiElements.ptzControls.style.display = "none";
   uiElements.callControls.style.display = "none";
@@ -61,22 +66,37 @@ export async function populateCameraList() {
     const devices = await navigator.mediaDevices.enumerateDevices();
     const videoDevices = devices.filter(device => device.kind === 'videoinput');
 
-    uiElements.cameraSelect.innerHTML = '';
+    uiElements.cameraSelect1.innerHTML = '';
+    uiElements.cameraSelect2.innerHTML = '';
 
     if (videoDevices.length === 0) {
-      uiElements.cameraSelect.innerHTML = '<option>カメラが見つかりません</option>';
-      uiElements.cameraSelect.disabled = true;
+      const message = '<option>カメラが見つかりません</option>';
+      uiElements.cameraSelect1.innerHTML = message;
+      uiElements.cameraSelect2.innerHTML = message;
+      uiElements.cameraSelect1.disabled = true;
+      uiElements.cameraSelect2.disabled = true;
       uiElements.startCameraBtn.disabled = true;
       return;
     }
 
     videoDevices.forEach((device, index) => {
-      const option = document.createElement('option');
-      option.value = device.deviceId;
-      option.text = device.label || `カメラ ${index + 1}`;
-      uiElements.cameraSelect.appendChild(option);
+      const option1 = document.createElement('option');
+      option1.value = device.deviceId;
+      option1.text = device.label || `カメラ ${index + 1}`;
+      uiElements.cameraSelect1.appendChild(option1);
+
+      const option2 = document.createElement('option');
+      option2.value = device.deviceId;
+      option2.text = device.label || `カメラ ${index + 1}`;
+      uiElements.cameraSelect2.appendChild(option2);
     });
-    uiElements.cameraSelect.disabled = false;
+    
+    if (videoDevices.length > 1) {
+        uiElements.cameraSelect2.selectedIndex = 1;
+    }
+
+    uiElements.cameraSelect1.disabled = false;
+    uiElements.cameraSelect2.disabled = false;
     uiElements.startCameraBtn.disabled = false;
 
   } catch (error) {

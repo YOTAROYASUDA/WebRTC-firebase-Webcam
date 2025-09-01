@@ -4,38 +4,37 @@ import * as state from './state.js';
 import * as uiElements from './ui-elements.js';
 
 /**
- * 送信者側で、カメラにPTZの制約を適用する。
+ * 送信者側で、指定されたカメラにPTZの制約を適用する。
+ * @param {string} target - 'camera1' or 'camera2'
  * @param {string} type - 'pan', 'tilt', or 'zoom'
  * @param {number} value - 適用する値
  */
-async function applyPtzConstraint(type, value) {
-  if (document.visibilityState !== 'visible') {
-    console.warn(`SENDER: Page is not visible. Skipping PTZ command to prevent SecurityError.`);
-    return;
-  }
-  if (!state.videoTrack || state.videoTrack.readyState !== 'live') {
-    console.warn("SENDER: videoTrack is not available to apply PTZ constraints.");
+async function applyPtzConstraint(target, type, value) {
+  const track = state.videoTracks[target];
+  if (document.visibilityState !== 'visible' || !track || track.readyState !== 'live') {
+    console.warn(`SENDER: Cannot apply PTZ to ${target}. Page not visible or track not live.`);
     return;
   }
   
-  console.log(`SENDER: Applying constraint - type: ${type}, value: ${value}`);
+  console.log(`SENDER: Applying to ${target} - type: ${type}, value: ${value}`);
   try {
-    await state.videoTrack.applyConstraints({ advanced: [{ [type]: value }] });
+    await track.applyConstraints({ advanced: [{ [type]: value }] });
   } catch (err) {
-    console.error(`SENDER: Error applying ${type} constraint:`, err);
+    console.error(`SENDER: Error applying ${type} constraint to ${target}:`, err);
   }
 }
 
 /**
- * 受信者側でPTZコントロールUIをセットアップする。
- * @param {object} capabilities - カメラから送られてきたPTZ機能
+ * 受信者側のPTZコントロールUIを指定されたカメラの機能で更新する。
+ * @param {string} target - 'camera1' or 'camera2'
  */
-function setupReceiverPtzControls(capabilities) {
-  console.log("RECEIVER: Setting up PTZ controls with capabilities:", capabilities);
-  state.setPtzCapabilities(capabilities);
+export function updateReceiverPtzControls(target) {
+  console.log(`RECEIVER: Updating PTZ controls for ${target}`);
+  state.setActivePtzTarget(target);
+  const capabilities = state.ptzCapabilities[target];
 
   ['zoom', 'pan', 'tilt'].forEach(type => {
-    const isSupported = !!state.ptzCapabilities[type];
+    const isSupported = !!(capabilities && capabilities[type]);
     const slider = document.getElementById(`${type}Slider`);
     const valueDisplay = document.getElementById(`${type}Value`);
     
@@ -43,14 +42,15 @@ function setupReceiverPtzControls(capabilities) {
     if(slider) slider.disabled = !isSupported;
 
     if (isSupported) {
-      const { min, max, step } = state.ptzCapabilities[type];
+      const { min, max, step } = capabilities[type];
       slider.min = min;
       slider.max = max;
       slider.step = step;
-      // パンとチルトは中央を初期値にする
-      const initialValue = (type === 'pan' || type === 'tilt') && min < 0 && max > 0 ? 0 : min;
-      slider.value = initialValue;
-      valueDisplay.textContent = parseFloat(initialValue).toFixed(2);
+      const currentValue = parseFloat(slider.value);
+      slider.value = Math.max(min, Math.min(max, currentValue));
+      valueDisplay.textContent = parseFloat(slider.value).toFixed(2);
+    } else if (valueDisplay) {
+      valueDisplay.textContent = 'N/A';
     }
   });
 }
@@ -61,21 +61,23 @@ function setupReceiverPtzControls(capabilities) {
  * @param {number} value - 送信する値
  */
 export function sendPtzCommand(type, value) {
+  const target = state.activePtzTarget;
+  const capabilities = state.ptzCapabilities[target];
+  
   if (state.peerConnection?.connectionState !== 'connected' || state.ptzChannel?.readyState !== 'open') {
-    console.warn(`RECEIVER: Cannot send command. Connection state: ${state.peerConnection?.connectionState}, DataChannel state: ${state.ptzChannel?.readyState}`);
+    console.warn(`RECEIVER: Cannot send command. Connection not ready.`);
     return;
   }
-  if (!state.ptzCapabilities[type]) {
-    console.warn(`RECEIVER: PTZ type '${type}' is not supported.`);
+  if (!capabilities || !capabilities[type]) {
+    console.warn(`RECEIVER: PTZ type '${type}' is not supported for ${target}.`);
     return;
   }
 
-  const { min, max } = state.ptzCapabilities[type];
+  const { min, max } = capabilities[type];
   const clampedValue = Math.max(min, Math.min(max, value));
-  const command = { type: 'command', command: type, value: clampedValue };
+  const command = { type: 'command', target, command: type, value: clampedValue };
   
   try {
-    console.log("RECEIVER: Sending command:", command);
     state.ptzChannel.send(JSON.stringify(command));
     document.getElementById(`${type}Slider`).value = clampedValue;
     document.getElementById(`${type}Value`).textContent = clampedValue.toFixed(2);
@@ -88,33 +90,31 @@ export function sendPtzCommand(type, value) {
  * 送信者側でPTZコントロール用のデータチャネルを設定する。
  */
 export function setupPtzDataChannel() {
-    console.log("SENDER: Creating DataChannel 'ptz'...");
     const channel = state.peerConnection.createDataChannel('ptz');
     state.setPtzChannel(channel);
     
-    state.ptzChannel.onopen = () => {
+    channel.onopen = () => {
         console.log("SENDER: DataChannel is open. Sending capabilities...");
-        const capabilities = state.videoTrack.getCapabilities();
         const caps = {
-            zoom: capabilities.zoom || null,
-            pan: capabilities.pan || null,
-            tilt: capabilities.tilt || null,
+            camera1: state.videoTracks.camera1.getCapabilities(),
+            camera2: state.videoTracks.camera2.getCapabilities()
         };
-        state.setPtzCapabilities(caps);
-        console.log("SENDER: Sending capabilities:", state.ptzCapabilities);
-        state.ptzChannel.send(JSON.stringify({ type: 'capabilities', data: state.ptzCapabilities }));
+        const ptzCaps = {
+            camera1: { zoom: caps.camera1.zoom, pan: caps.camera1.pan, tilt: caps.camera1.tilt },
+            camera2: { zoom: caps.camera2.zoom, pan: caps.camera2.pan, tilt: caps.camera2.tilt }
+        };
+        channel.send(JSON.stringify({ type: 'capabilities', data: ptzCaps }));
     };
     
-    state.ptzChannel.onmessage = (event) => {
+    channel.onmessage = (event) => {
         const msg = JSON.parse(event.data);
-        console.log("SENDER: Received command:", msg);
-        if (msg.type === 'command' && state.videoTrack) {
-            applyPtzConstraint(msg.command, msg.value);
+        if (msg.type === 'command' && state.videoTracks[msg.target]) {
+            applyPtzConstraint(msg.target, msg.command, msg.value);
         }
     };
     
-    state.ptzChannel.onclose = () => console.log("SENDER: DataChannel is closed.");
-    state.ptzChannel.onerror = (error) => console.error("SENDER: DataChannel error:", error);
+    channel.onclose = () => console.log("SENDER: DataChannel is closed.");
+    channel.onerror = (error) => console.error("SENDER: DataChannel error:", error);
 }
 
 /**
@@ -122,22 +122,22 @@ export function setupPtzDataChannel() {
  * @param {RTCDataChannelEvent} event 
  */
 export function handleReceiverDataChannel(event) {
-    console.log(`RECEIVER: ondatachannel event fired. Channel label: '${event.channel.label}'`);
-    if (event.channel.label === 'ptz') {
-        state.setPtzChannel(event.channel);
-        state.ptzChannel.onopen = () => console.log("RECEIVER: DataChannel is open.");
-        state.ptzChannel.onmessage = (e) => {
-            const msg = JSON.parse(e.data);
-            console.log("RECEIVER: Received message:", msg);
-            if (msg.type === 'capabilities') {
-                setupReceiverPtzControls(msg.data);
-                uiElements.ptzControls.style.display = 'block';
-            }
-        };
-        state.ptzChannel.onclose = () => {
-            console.log("RECEIVER: DataChannel is closed.");
-            uiElements.ptzControls.style.display = 'none';
-        };
-        state.ptzChannel.onerror = (error) => console.error("RECEIVER: DataChannel error:", error);
-    }
+    if (event.channel.label !== 'ptz') return;
+    
+    const channel = event.channel;
+    state.setPtzChannel(channel);
+    
+    channel.onopen = () => console.log("RECEIVER: DataChannel is open.");
+    channel.onmessage = (e) => {
+        const msg = JSON.parse(e.data);
+        if (msg.type === 'capabilities') {
+            state.setPtzCapabilities(msg.data);
+            uiElements.ptzControls.style.display = 'block';
+            updateReceiverPtzControls(state.activePtzTarget);
+        }
+    };
+    channel.onclose = () => {
+        uiElements.ptzControls.style.display = 'none';
+    };
+    channel.onerror = (error) => console.error("RECEIVER: DataChannel error:", error);
 }

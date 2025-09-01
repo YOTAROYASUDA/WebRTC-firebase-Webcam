@@ -31,7 +31,8 @@ function createPeerConnection() {
         clearInterval(state.resolutionUpdateInterval);
         state.setResolutionUpdateInterval(null);
       }
-      uiElements.resolutionDisplay.style.display = 'none';
+      uiElements.resolutionDisplay1.style.display = 'none';
+      uiElements.resolutionDisplay2.style.display = 'none';
     }
 
     if (!isConnected) {
@@ -106,9 +107,9 @@ export async function hangUp() {
     state.setResolutionUpdateInterval(null);
   }
 
-  if (state.localStream) {
-    state.localStream.getTracks().forEach(track => track.stop());
-    state.setLocalStream(null);
+  if (state.localStreams) {
+    state.localStreams.forEach(stream => stream.getTracks().forEach(track => track.stop()));
+    state.setLocalStreams([]);
   }
 
   if (state.peerConnection) {
@@ -121,7 +122,8 @@ export async function hangUp() {
     state.setCallDocRef(null);
   }
   
-  state.setVideoTrack(null);
+  state.setVideoTracks({});
+  state.setRemoteTracks({});
   ui.resetUI();
 }
 
@@ -133,30 +135,40 @@ export async function startCall() {
   const selectedResolution = uiElements.resolutionSelect.value;
   const selectedFramerate = parseInt(uiElements.framerateSelect.value, 10);
   const selectedCodec = uiElements.codecSelect.value;
-  const selectedCameraId = uiElements.cameraSelect.value; 
-  const constraints = {
-    video: { 
-        deviceId: { exact: selectedCameraId },
-        ...RESOLUTIONS[selectedResolution], 
-        frameRate: { ideal: selectedFramerate},
-        pan: true, 
-        tilt: true, 
-        zoom: true 
-    },
-    audio: false
+  const selectedCameraId1 = uiElements.cameraSelect1.value; 
+  const selectedCameraId2 = uiElements.cameraSelect2.value; 
+  
+  const commonConstraints = {
+    ...RESOLUTIONS[selectedResolution], 
+    frameRate: { ideal: selectedFramerate},
+    pan: true, 
+    tilt: true, 
+    zoom: true 
   };
 
+  const constraints1 = { video: { deviceId: { exact: selectedCameraId1 }, ...commonConstraints }, audio: false };
+  const constraints2 = { video: { deviceId: { exact: selectedCameraId2 }, ...commonConstraints }, audio: false };
+
   try {
-    const stream = await navigator.mediaDevices.getUserMedia(constraints);
-    state.setLocalStream(stream);
-    uiElements.localVideo.srcObject = stream;
-    uiElements.localVideo.style.display = 'block';
-    const [track] = stream.getVideoTracks();
-    state.setVideoTrack(track);
+    const stream1 = await navigator.mediaDevices.getUserMedia(constraints1);
+    const stream2 = await navigator.mediaDevices.getUserMedia(constraints2);
+    state.setLocalStreams([stream1, stream2]);
+
+    uiElements.localVideo1.srcObject = stream1;
+    uiElements.localVideo2.srcObject = stream2;
+    uiElements.localVideo1.style.display = 'block';
+    uiElements.localVideo2.style.display = 'block';
+    
+    const tracks = {
+      camera1: stream1.getVideoTracks()[0],
+      camera2: stream2.getVideoTracks()[0]
+    };
+    state.setVideoTracks(tracks);
 
     const pc = createPeerConnection();
     state.setPeerConnection(pc);
-    stream.getTracks().forEach(track => state.peerConnection.addTrack(track, stream));
+    stream1.getTracks().forEach(track => state.peerConnection.addTrack(track, stream1));
+    stream2.getTracks().forEach(track => state.peerConnection.addTrack(track, stream2));
     
     ptz.setupPtzDataChannel();
 
@@ -220,10 +232,25 @@ export async function joinCall() {
     const offerCandidates = collection(callRef, "offerCandidates");
     const answerCandidates = collection(callRef, "answerCandidates");
 
+    const videoElements = [uiElements.remoteVideo1, uiElements.remoteVideo2];
+    const containerElements = [uiElements.remoteVideoContainer1, uiElements.remoteVideoContainer2];
+    const resolutionDisplays = [uiElements.resolutionDisplay1, uiElements.resolutionDisplay2];
+    const remoteTracks = {};
+    let videoIndex = 0;
+    
     state.peerConnection.ontrack = event => {
-      uiElements.remoteVideo.srcObject = event.streams[0];
-      uiElements.remoteVideoContainer.style.display = 'inline-block';
+      if (event.track.kind === 'video' && videoIndex < videoElements.length) {
+        videoElements[videoIndex].srcObject = event.streams[0];
+        containerElements[videoIndex].style.display = 'inline-block';
+        
+        // トラックIDをキーとして、対応する解像度表示要素を保存
+        remoteTracks[event.track.id] = resolutionDisplays[videoIndex];
+        
+        videoIndex++;
+      }
     };
+    state.setRemoteTracks(remoteTracks);
+    
     state.peerConnection.ondatachannel = ptz.handleReceiverDataChannel;
     
     handleIceCandidates(state.peerConnection, answerCandidates);
