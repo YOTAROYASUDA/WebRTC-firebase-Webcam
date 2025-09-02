@@ -48,30 +48,59 @@ function createPeerConnection() {
 }
 
 /**
- * SDP（Session Description Protocol）を操作して、指定されたコーデックを優先する。
+ * SDP（Session Description Protocol）を操作して、すべてのビデオストリームで指定されたコーデックを優先する。
  * @param {string} sdp - 元のSDP
  * @param {string} codecName - 優先するコーデック名 (e.g., 'H264', 'VP9')
  * @returns {string} 変更されたSDP
  */
 function preferCodec(sdp, codecName) {
   const lines = sdp.split('\r\n');
-  const mLineIndex = lines.findIndex(line => line.startsWith('m=video'));
-  if (mLineIndex === -1) return sdp;
+  const mLineIndices = [];
+  
+  // すべての "m=video" 行のインデックスを見つける
+  lines.forEach((line, index) => {
+    if (line.startsWith('m=video')) {
+      mLineIndices.push(index);
+    }
+  });
 
+  if (mLineIndices.length === 0) {
+    return sdp; // ビデオの行が見つからなければ何もしない
+  }
+
+  // 指定されたコーデックのペイロードタイプを見つける
   const codecRegex = new RegExp(`a=rtpmap:(\\d+) ${codecName}/90000`, 'i');
   const codecLine = lines.find(line => codecRegex.test(line));
-  if (!codecLine) return sdp;
-
+  
+  if (!codecLine) {
+    return sdp; // サポートされているコーデックリストになければ何もしない
+  }
+  
   const codecPayload = codecLine.match(codecRegex)[1];
-  const mLineParts = lines[mLineIndex].split(' ');
-  const newMLine = [
-    mLineParts[0], mLineParts[1], mLineParts[2],
-    codecPayload,
-    ...mLineParts.slice(3).filter(pt => pt !== codecPayload)
-  ];
-  lines[mLineIndex] = newMLine.join(' ');
+
+  // 見つかったすべての "m=video" 行をループ処理する
+  mLineIndices.forEach(mLineIndex => {
+    const mLineParts = lines[mLineIndex].split(' ');
+    
+    // このm-lineに目的のペイロードタイプが含まれているか確認
+    if (mLineParts.slice(3).includes(codecPayload)) {
+        // ペイロードタイプリストから目的のものを削除し、先頭に追加する
+        const newPayloadOrder = [
+          codecPayload,
+          ...mLineParts.slice(3).filter(pt => pt !== codecPayload)
+        ];
+        
+        // m-lineを再構築
+        lines[mLineIndex] = [
+          ...mLineParts.slice(0, 3),
+          ...newPayloadOrder
+        ].join(' ');
+    }
+  });
+
   return lines.join('\r\n');
 }
+
 
 /**
  * ICE Candidateをリッスンし、Firestoreに保存する。

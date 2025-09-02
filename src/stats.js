@@ -50,12 +50,26 @@ function populateSenderStats(stats, dataToRecord) {
   const camera1TrackId = state.videoTracks.camera1?.id;
   const camera2TrackId = state.videoTracks.camera2?.id;
 
+  // media-sourceレポートから mediaSourceId と trackIdentifier の対応マップを作成
+  const sourceToTrackIdentifierMap = new Map();
+  stats.forEach(report => {
+    if (report.type === 'media-source') {
+      sourceToTrackIdentifierMap.set(report.id, report.trackIdentifier);
+    }
+  });
+
   stats.forEach(report => {
     if (report.type === 'outbound-rtp' && report.mediaType === 'video') {
+      // outbound-rtpレポートの mediaSourceId を使って、マップから trackIdentifier を取得
+      const trackIdentifier = sourceToTrackIdentifierMap.get(report.mediaSourceId);
+      if (!trackIdentifier) {
+        return; // 紐づくトラックが見つからなければスキップ
+      }
+
       let cameraName;
-      if (report.trackIdentifier === camera1TrackId) {
+      if (trackIdentifier === camera1TrackId) {
         cameraName = 'camera1';
-      } else if (report.trackIdentifier === camera2TrackId) {
+      } else if (trackIdentifier === camera2TrackId) {
         cameraName = 'camera2';
       }
 
@@ -77,9 +91,6 @@ function populateSenderStats(stats, dataToRecord) {
       }
     }
     if (report.type === 'remote-inbound-rtp' && report.mediaType === 'video') {
-      // Note: This gives combined stats for remote, not per-camera.
-      // To get per-camera, you'd need to identify which remote report corresponds to which sent stream.
-      // For simplicity, we keep it combined for now.
       dataToRecord.receiver_jitter_ms = (report.jitter * 1000)?.toFixed(4) ?? 'N/A';
       dataToRecord.receiver_packets_lost = report.packetsLost;
       dataToRecord.receiver_fraction_lost = report.fractionLost;
