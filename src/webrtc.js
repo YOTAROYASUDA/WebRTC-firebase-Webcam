@@ -7,7 +7,7 @@ import { RTC_CONFIGURATION, RESOLUTIONS } from './constants.js';
 import * as ui from './ui.js';
 import * as uiElements from './ui-elements.js';
 import * as ptz from './ptz.js';
-import { stopStatsRecording, updateResolutionDisplay } from './stats.js';
+import { stopStatsRecording, updateResolutionDisplay, startStatsRecording } from './stats.js';
 
 /**
  * RTCPeerConnectionインスタンスを作成し、イベントハンドラを設定する。
@@ -20,6 +20,10 @@ function createPeerConnection() {
     console.log(`PeerConnection state changed to: ${pc.connectionState}`);
     const isConnected = pc.connectionState === 'connected';
     uiElements.statsControls.style.display = isConnected ? 'block' : 'none';
+
+    if (isConnected) {
+      startStatsRecording();
+    }
 
     if (isConnected && state.currentRole === 'receiver') {
       if (!state.resolutionUpdateInterval) {
@@ -237,15 +241,20 @@ export async function joinCall() {
     const resolutionDisplays = [uiElements.resolutionDisplay1, uiElements.resolutionDisplay2];
     const remoteTracks = {};
     let videoIndex = 0;
-    
+    const cameraNames = ['camera1', 'camera2']; // 送信側が追加する順番に合わせる
+
     state.peerConnection.ontrack = event => {
       if (event.track.kind === 'video' && videoIndex < videoElements.length) {
         videoElements[videoIndex].srcObject = event.streams[0];
         containerElements[videoIndex].style.display = 'inline-block';
-        
-        // トラックIDをキーとして、対応する解像度表示要素を保存
-        remoteTracks[event.track.id] = resolutionDisplays[videoIndex];
-        
+
+        const cameraName = cameraNames[videoIndex];
+        // トラックIDをキーとして、対応する解像度表示要素とカメラ名を保存
+        remoteTracks[event.track.id] = {
+            displayElement: resolutionDisplays[videoIndex],
+            name: cameraName
+        };
+
         videoIndex++;
       }
     };

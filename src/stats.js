@@ -16,21 +16,22 @@ export async function updateResolutionDisplay() {
 
       // まず、すべての解像度表示を一旦非表示にする
       if (state.remoteTracks) {
-          Object.values(state.remoteTracks).forEach(display => {
-              if (display) display.style.display = 'none';
+          Object.values(state.remoteTracks).forEach(trackInfo => {
+              if (trackInfo && trackInfo.displayElement) {
+                trackInfo.displayElement.style.display = 'none';
+              }
           });
       }
-        
+
       stats.forEach(report => {
           // 受信中のビデオストリームに関するレポートをフィルタリング
           if (report.type === 'inbound-rtp' && report.mediaType === 'video' && state.remoteTracks) {
-              // レポートの trackIdentifier (トラックID) を使って、対応するUI要素を取得
-              const displayElement = state.remoteTracks[report.trackIdentifier];
-                
+              const trackInfo = state.remoteTracks[report.trackIdentifier];
+
               // 対応するUI要素があり、解像度の情報があれば表示を更新
-              if (displayElement && report.frameWidth && report.frameHeight) {
-                  displayElement.textContent = `${report.frameWidth} x ${report.frameHeight}`;
-                  displayElement.style.display = 'block';
+              if (trackInfo && trackInfo.displayElement && report.frameWidth && report.frameHeight) {
+                  trackInfo.displayElement.textContent = `${report.frameWidth} x ${report.frameHeight}`;
+                  trackInfo.displayElement.style.display = 'block';
               }
           }
       });
@@ -46,24 +47,39 @@ export async function updateResolutionDisplay() {
  * @param {object} dataToRecord - 記録するデータを格納するオブジェクト
  */
 function populateSenderStats(stats, dataToRecord) {
+  const camera1TrackId = state.videoTracks.camera1?.id;
+  const camera2TrackId = state.videoTracks.camera2?.id;
+
   stats.forEach(report => {
     if (report.type === 'outbound-rtp' && report.mediaType === 'video') {
-      const lastOutboundReport = state.lastStatsReport?.get(report.id);
-      const bytesSent = report.bytesSent - (lastOutboundReport?.bytesSent ?? 0);
-      const packetsSent = report.packetsSent - (lastOutboundReport?.packetsSent ?? 0);
-      
-      dataToRecord.sent_resolution = `${report.frameWidth}x${report.frameHeight}`;
-      dataToRecord.sent_fps = report.framesPerSecond;
-      dataToRecord.sent_bitrate_kbps = Math.round((Math.max(0, bytesSent) * 8) / 1000);
-      dataToRecord.packets_sent_per_second = Math.max(0, packetsSent);
-      dataToRecord.total_encode_time_s = report.totalEncodeTime;
-      dataToRecord.keyframes_encoded = report.keyFramesEncoded;
-      dataToRecord.quality_limitation_reason = report.qualityLimitationReason;
-      dataToRecord.quality_limitation_resolution_changes = report.qualityLimitationResolutionChanges;
-      dataToRecord.retransmitted_packets_sent = report.retransmittedPacketsSent;
-      dataToRecord.nack_count = report.nackCount;
+      let cameraName;
+      if (report.trackIdentifier === camera1TrackId) {
+        cameraName = 'camera1';
+      } else if (report.trackIdentifier === camera2TrackId) {
+        cameraName = 'camera2';
+      }
+
+      if (cameraName) {
+        const lastOutboundReport = state.lastStatsReport?.get(report.id);
+        const bytesSent = report.bytesSent - (lastOutboundReport?.bytesSent ?? 0);
+        const packetsSent = report.packetsSent - (lastOutboundReport?.packetsSent ?? 0);
+
+        dataToRecord[`${cameraName}_sent_resolution`] = `${report.frameWidth}x${report.frameHeight}`;
+        dataToRecord[`${cameraName}_sent_fps`] = report.framesPerSecond;
+        dataToRecord[`${cameraName}_sent_bitrate_kbps`] = Math.round((Math.max(0, bytesSent) * 8) / 1000);
+        dataToRecord[`${cameraName}_packets_sent_per_second`] = Math.max(0, packetsSent);
+        dataToRecord[`${cameraName}_total_encode_time_s`] = report.totalEncodeTime;
+        dataToRecord[`${cameraName}_keyframes_encoded`] = report.keyFramesEncoded;
+        dataToRecord[`${cameraName}_quality_limitation_reason`] = report.qualityLimitationReason;
+        dataToRecord[`${cameraName}_quality_limitation_resolution_changes`] = report.qualityLimitationResolutionChanges;
+        dataToRecord[`${cameraName}_retransmitted_packets_sent`] = report.retransmittedPacketsSent;
+        dataToRecord[`${cameraName}_nack_count`] = report.nackCount;
+      }
     }
     if (report.type === 'remote-inbound-rtp' && report.mediaType === 'video') {
+      // Note: This gives combined stats for remote, not per-camera.
+      // To get per-camera, you'd need to identify which remote report corresponds to which sent stream.
+      // For simplicity, we keep it combined for now.
       dataToRecord.receiver_jitter_ms = (report.jitter * 1000)?.toFixed(4) ?? 'N/A';
       dataToRecord.receiver_packets_lost = report.packetsLost;
       dataToRecord.receiver_fraction_lost = report.fractionLost;
@@ -80,6 +96,7 @@ function populateSenderStats(stats, dataToRecord) {
   });
 }
 
+
 /**
  * 受信者側の統計情報を収集する。
  * @param {RTCStatsReport} stats - getStats()から取得したレポート
@@ -88,23 +105,28 @@ function populateSenderStats(stats, dataToRecord) {
 function populateReceiverStats(stats, dataToRecord) {
   stats.forEach(report => {
     if (report.type === 'inbound-rtp' && report.mediaType === 'video') {
-      const lastInboundReport = state.lastStatsReport?.get(report.id);
-      const bytesReceived = report.bytesReceived - (lastInboundReport?.bytesReceived ?? 0);
-      const packetsReceived = report.packetsReceived - (lastInboundReport?.packetsReceived ?? 0);
-      
-      dataToRecord.received_resolution = `${report.frameWidth}x${report.frameHeight}`;
-      dataToRecord.received_fps = report.framesPerSecond;
-      dataToRecord.received_bitrate_kbps = Math.round((Math.max(0, bytesReceived) * 8) / 1000);
-      dataToRecord.packets_received_per_second = Math.max(0, packetsReceived);
-      dataToRecord.jitter_ms = (report.jitter * 1000)?.toFixed(4) ?? 'N/A';
-      dataToRecord.packets_lost = report.packetsLost;
-      dataToRecord.frames_dropped = report.framesDropped;
-      dataToRecord.total_decode_time_s = report.totalDecodeTime;
-      dataToRecord.keyframes_decoded = report.keyFramesDecoded;
-      dataToRecord.jitter_buffer_delay_s = report.jitterBufferDelay;
-      dataToRecord.fir_count = report.firCount;
-      dataToRecord.pli_count = report.pliCount;
-      dataToRecord.jitter_buffer_emitted_count = report.jitterBufferEmittedCount;
+      const trackInfo = state.remoteTracks[report.trackIdentifier];
+      const cameraName = trackInfo ? trackInfo.name : null;
+
+      if (cameraName) {
+        const lastInboundReport = state.lastStatsReport?.get(report.id);
+        const bytesReceived = report.bytesReceived - (lastInboundReport?.bytesReceived ?? 0);
+        const packetsReceived = report.packetsReceived - (lastInboundReport?.packetsReceived ?? 0);
+
+        dataToRecord[`${cameraName}_received_resolution`] = `${report.frameWidth}x${report.frameHeight}`;
+        dataToRecord[`${cameraName}_received_fps`] = report.framesPerSecond;
+        dataToRecord[`${cameraName}_received_bitrate_kbps`] = Math.round((Math.max(0, bytesReceived) * 8) / 1000);
+        dataToRecord[`${cameraName}_packets_received_per_second`] = Math.max(0, packetsReceived);
+        dataToRecord[`${cameraName}_jitter_ms`] = (report.jitter * 1000)?.toFixed(4) ?? 'N/A';
+        dataToRecord[`${cameraName}_packets_lost`] = report.packetsLost;
+        dataToRecord[`${cameraName}_frames_dropped`] = report.framesDropped;
+        dataToRecord[`${cameraName}_total_decode_time_s`] = report.totalDecodeTime;
+        dataToRecord[`${cameraName}_keyframes_decoded`] = report.keyFramesDecoded;
+        dataToRecord[`${cameraName}_jitter_buffer_delay_s`] = report.jitterBufferDelay;
+        dataToRecord[`${cameraName}_fir_count`] = report.firCount;
+        dataToRecord[`${cameraName}_pli_count`] = report.pliCount;
+        dataToRecord[`${cameraName}_jitter_buffer_emitted_count`] = report.jitterBufferEmittedCount;
+      }
     }
     if (report.type === 'candidate-pair' && report.nominated && report.state === 'succeeded') {
       const remoteCandidate = stats.get(report.remoteCandidateId);
@@ -115,16 +137,17 @@ function populateReceiverStats(stats, dataToRecord) {
   });
 }
 
+
 /**
  * 統計情報の記録を開始する。
  */
 export function startStatsRecording() {
   if (!state.peerConnection || state.isRecordingStats) return;
-  
+
   state.setIsRecordingStats(true);
   state.setRecordedStats([]);
   state.setLastStatsReport(null);
-  
+
   uiElements.startStatsRecordingBtn.disabled = true;
   uiElements.stopStatsRecordingBtn.disabled = false;
   uiElements.downloadStatsBtn.disabled = true;
@@ -132,7 +155,7 @@ export function startStatsRecording() {
 
   const interval = setInterval(async () => {
     if (!state.peerConnection) return;
-    
+
     const stats = await state.peerConnection.getStats();
     const dataToRecord = { timestamp: new Date().toISOString() };
 
@@ -142,6 +165,7 @@ export function startStatsRecording() {
       populateReceiverStats(stats, dataToRecord);
     }
 
+    // タイムスタンプ以外に何かしらのデータが記録された場合のみ追加
     if (Object.keys(dataToRecord).length > 1) {
       state.recordedStats.push(dataToRecord);
       uiElements.statsDisplay.textContent = `記録中... ${state.recordedStats.length} 個`;
@@ -156,7 +180,7 @@ export function startStatsRecording() {
  */
 export function stopStatsRecording() {
   if (!state.isRecordingStats) return;
-  
+
   clearInterval(state.statsInterval);
   state.setIsRecordingStats(false);
   state.setLastStatsReport(null);
@@ -179,10 +203,10 @@ export function downloadStatsAsCsv() {
   const headerSet = new Set();
   state.recordedStats.forEach(row => Object.keys(row).forEach(key => headerSet.add(key)));
   const headers = Array.from(headerSet);
-  
+
   const csvRows = [
     headers.join(','),
-    ...state.recordedStats.map(row => 
+    ...state.recordedStats.map(row =>
       headers.map(header => {
         const value = row[header] ?? '';
         return typeof value === 'string' && value.includes(',') ? `"${value.replace(/"/g, '""')}"` : value;
@@ -193,7 +217,7 @@ export function downloadStatsAsCsv() {
   const csvString = csvRows.join('\n');
   const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
-  
+
   const link = document.createElement('a');
   link.href = url;
   link.download = `webrtc_stats_${state.currentRole}_${new Date().toISOString().replace(/[:.]/g, '-')}.csv`;
