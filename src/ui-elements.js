@@ -52,3 +52,15 @@ export const panSlider = document.getElementById("panSlider");
 export const panValue = document.getElementById("panValue");
 export const ptzResetBtn = document.getElementById("ptzResetBtn");
 export const ptzTargetInputs = document.querySelectorAll('input[name="ptzTarget"]');
+
+// Recording-related elements for Camera 1
+export const startRecordingBtn1 = document.getElementById("startRecording1");
+export const stopRecordingBtn1 = document.getElementById("stopRecording1");
+export const downloadVideoBtn1 = document.getElementById("downloadVideo1");
+export const recordingStatus1 = document.getElementById("recordingStatus1");
+
+// Recording-related elements for Camera 2
+export const startRecordingBtn2 = document.getElementById("startRecording2");
+export const stopRecordingBtn2 = document.getElementById("stopRecording2");
+export const downloadVideoBtn2 = document.getElementById("downloadVideo2");
+export const recordingStatus2 = document.getElementById("recordingStatus2");

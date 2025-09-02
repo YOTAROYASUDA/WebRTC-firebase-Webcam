@@ -8,6 +8,7 @@ import * as ui from './ui.js';
 import * as uiElements from './ui-elements.js';
 import * as ptz from './ptz.js';
 import { stopStatsRecording, updateResolutionDisplay, startStatsRecording } from './stats.js';
+import { stopRecording } from './recording.js';
 
 /**
  * RTCPeerConnectionインスタンスを作成し、イベントハンドラを設定する。
@@ -41,6 +42,9 @@ function createPeerConnection() {
 
     if (!isConnected) {
       stopStatsRecording();
+      // 接続が切れたら録画も停止
+      stopRecording('camera1');
+      stopRecording('camera2');
     }
   };
 
@@ -57,7 +61,6 @@ function preferCodec(sdp, codecName) {
   const lines = sdp.split('\r\n');
   const mLineIndices = [];
   
-  // すべての "m=video" 行のインデックスを見つける
   lines.forEach((line, index) => {
     if (line.startsWith('m=video')) {
       mLineIndices.push(index);
@@ -65,32 +68,27 @@ function preferCodec(sdp, codecName) {
   });
 
   if (mLineIndices.length === 0) {
-    return sdp; // ビデオの行が見つからなければ何もしない
+    return sdp;
   }
 
-  // 指定されたコーデックのペイロードタイプを見つける
   const codecRegex = new RegExp(`a=rtpmap:(\\d+) ${codecName}/90000`, 'i');
   const codecLine = lines.find(line => codecRegex.test(line));
   
   if (!codecLine) {
-    return sdp; // サポートされているコーデックリストになければ何もしない
+    return sdp;
   }
   
   const codecPayload = codecLine.match(codecRegex)[1];
 
-  // 見つかったすべての "m=video" 行をループ処理する
   mLineIndices.forEach(mLineIndex => {
     const mLineParts = lines[mLineIndex].split(' ');
     
-    // このm-lineに目的のペイロードタイプが含まれているか確認
     if (mLineParts.slice(3).includes(codecPayload)) {
-        // ペイロードタイプリストから目的のものを削除し、先頭に追加する
         const newPayloadOrder = [
           codecPayload,
           ...mLineParts.slice(3).filter(pt => pt !== codecPayload)
         ];
         
-        // m-lineを再構築
         lines[mLineIndex] = [
           ...mLineParts.slice(0, 3),
           ...newPayloadOrder
@@ -135,6 +133,10 @@ function listenForRemoteCandidates(candidateCollection) {
  */
 export async function hangUp() {
   stopStatsRecording();
+  // 両方の録画を停止
+  stopRecording('camera1');
+  stopRecording('camera2');
+  
   if (state.resolutionUpdateInterval) {
     clearInterval(state.resolutionUpdateInterval);
     state.setResolutionUpdateInterval(null);
@@ -270,7 +272,7 @@ export async function joinCall() {
     const resolutionDisplays = [uiElements.resolutionDisplay1, uiElements.resolutionDisplay2];
     const remoteTracks = {};
     let videoIndex = 0;
-    const cameraNames = ['camera1', 'camera2']; // 送信側が追加する順番に合わせる
+    const cameraNames = ['camera1', 'camera2']; 
 
     state.peerConnection.ontrack = event => {
       if (event.track.kind === 'video' && videoIndex < videoElements.length) {
@@ -278,7 +280,6 @@ export async function joinCall() {
         containerElements[videoIndex].style.display = 'inline-block';
 
         const cameraName = cameraNames[videoIndex];
-        // トラックIDをキーとして、対応する解像度表示要素とカメラ名を保存
         remoteTracks[event.track.id] = {
             displayElement: resolutionDisplays[videoIndex],
             name: cameraName

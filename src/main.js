@@ -6,6 +6,7 @@ import * as state from './state.js';
 import { startCall, joinCall, hangUp } from './webrtc.js';
 import { sendPtzCommand, updateReceiverPtzControls } from './ptz.js';
 import { startStatsRecording, stopStatsRecording, downloadStatsAsCsv } from './stats.js';
+import { startRecording, stopRecording, downloadVideo } from './recording.js';
 
 /**
  * アプリケーションのすべてのイベントリスナーを初期化する。
@@ -35,6 +36,15 @@ function initializeEventListeners() {
   uiElements.startStatsRecordingBtn.addEventListener("click", startStatsRecording);
   uiElements.stopStatsRecordingBtn.addEventListener("click", stopStatsRecording);
   uiElements.downloadStatsBtn.addEventListener("click", downloadStatsAsCsv);
+
+  // Recording button event listeners
+  uiElements.startRecordingBtn1.addEventListener("click", () => startRecording('camera1'));
+  uiElements.stopRecordingBtn1.addEventListener("click", () => stopRecording('camera1'));
+  uiElements.downloadVideoBtn1.addEventListener("click", () => downloadVideo('camera1'));
+
+  uiElements.startRecordingBtn2.addEventListener("click", () => startRecording('camera2'));
+  uiElements.stopRecordingBtn2.addEventListener("click", () => stopRecording('camera2'));
+  uiElements.downloadVideoBtn2.addEventListener("click", () => downloadVideo('camera2'));
 
   uiElements.ptzTargetInputs.forEach(input => {
     input.addEventListener('change', (e) => {
@@ -109,8 +119,6 @@ function initializeEventListeners() {
     if (commandSent) event.preventDefault();
   });
 
-  // Since we have two containers, this needs to be adapted.
-  // This example makes only the first video container fullscreen.
   uiElements.fullscreenBtn1.addEventListener('click', () => {
     if (!document.fullscreenElement) {
         uiElements.remoteVideoContainer1.requestFullscreen().catch(err => {
@@ -141,9 +149,6 @@ function initializeEventListeners() {
 // --- 初期化 (Initialization) ---
 // =================================================================================
 
-// 最初に表示する役割に応じてUIを更新
 updateRoleUI(document.querySelector('input[name="role"]:checked').value);
-// すべてのイベントリスナーを設定
 initializeEventListeners();
-// カメラリストを取得して表示
 populateCameraList();

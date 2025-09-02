@@ -36,6 +36,26 @@ export function resetUI() {
   uiElements.stopStatsRecordingBtn.disabled = true;
   uiElements.downloadStatsBtn.disabled = true;
 
+  // Reset recording UI for both cameras
+  ['camera1', 'camera2'].forEach(target => {
+      if (state.mediaRecorders[target] && state.mediaRecorders[target].state !== 'inactive') {
+          state.mediaRecorders[target].stop();
+      }
+      state.setMediaRecorder(target, null);
+      state.setRecordedChunks(target, []);
+      state.setIsRecording(target, false);
+  });
+  
+  uiElements.startRecordingBtn1.disabled = false;
+  uiElements.stopRecordingBtn1.disabled = true;
+  uiElements.downloadVideoBtn1.disabled = true;
+  uiElements.recordingStatus1.textContent = "";
+  
+  uiElements.startRecordingBtn2.disabled = false;
+  uiElements.stopRecordingBtn2.disabled = true;
+  uiElements.downloadVideoBtn2.disabled = true;
+  uiElements.recordingStatus2.textContent = "";
+
   if (state.ptzChannel) {
     state.ptzChannel.close();
     state.setPtzChannel(null);

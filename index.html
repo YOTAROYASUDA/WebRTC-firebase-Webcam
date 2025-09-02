@@ -79,6 +79,23 @@
         font-size: 0.9em;
         color: #555;
     }
+    .recording-controls {
+        position: absolute;
+        bottom: 10px;
+        left: 10px;
+        z-index: 3;
+        background-color: rgba(0,0,0,0.5);
+        padding: 5px;
+        border-radius: 5px;
+    }
+    .recording-controls button {
+        font-size: 12px;
+    }
+    .recording-controls span {
+        color: white;
+        font-size: 12px;
+        margin-left: 10px;
+    }
   </style>
 </head>
 <body>
@@ -175,11 +192,23 @@
             <video id="remoteVideo1" autoplay playsinline></video>
             <div id="resolutionDisplay1"></div>
             <button id="fullscreenBtn1">フルスクリーン</button>
+            <div class="recording-controls">
+                <button id="startRecording1">録画開始 1</button>
+                <button id="stopRecording1" disabled>録画停止 1</button>
+                <button id="downloadVideo1" disabled>ダウンロード 1</button>
+                <span id="recordingStatus1"></span>
+            </div>
         </div>
         <div id="remoteVideoContainer2">
             <video id="remoteVideo2" autoplay playsinline></video>
             <div id="resolutionDisplay2"></div>
             <button id="fullscreenBtn2">フルスクリーン</button>
+            <div class="recording-controls">
+                <button id="startRecording2">録画開始 2</button>
+                <button id="stopRecording2" disabled>録画停止 2</button>
+                <button id="downloadVideo2" disabled>ダウンロード 2</button>
+                <span id="recordingStatus2"></span>
+            </div>
         </div>
       </div>
   </div>
@@ -192,6 +221,7 @@
     <div id="statsDisplay"></div>
   </div>
 
+  <script type="module" src="src/webm-fixer.js"></script>
   <script type="module" src="src/main.js"></script>
 </body>
 </html>

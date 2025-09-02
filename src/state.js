@@ -15,6 +15,12 @@ export let lastStatsReport = null;
 export let resolutionUpdateInterval = null;
 export let activePtzTarget = 'camera1';
 
+// Recording state (managed per camera)
+export let mediaRecorders = { camera1: null, camera2: null };
+export let recordedChunks = { camera1: [], camera2: [] };
+export let isRecording = { camera1: false, camera2: false };
+
+
 // 状態を変更するための関数群
 export function setPeerConnection(pc) { peerConnection = pc; }
 export function setLocalStreams(streams) { localStreams = streams; }
@@ -30,3 +36,6 @@ export function setCurrentRole(role) { currentRole = role; }
 export function setLastStatsReport(report) { lastStatsReport = report; }
 export function setResolutionUpdateInterval(interval) { resolutionUpdateInterval = interval; }
 export function setActivePtzTarget(target) { activePtzTarget = target; }
+export function setMediaRecorder(target, recorder) { mediaRecorders[target] = recorder; }
+export function setRecordedChunks(target, chunks) { recordedChunks[target] = chunks; }
+export function setIsRecording(target, recording) { isRecording[target] = recording; }
