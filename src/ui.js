@@ -116,11 +116,22 @@ export async function populateCameraList() {
     }
 
     uiElements.cameraSelect1.disabled = false;
-    uiElements.cameraSelect2.disabled = false;
+    uiElements.cameraSelect2.disabled = videoDevices.length < 2;
     uiElements.startCameraBtn.disabled = false;
+    
+    // カメラ台数セレクターの状態に応じてUIを更新
+    updateCameraCountUI();
 
   } catch (error) {
     console.error("Error enumerating devices:", error);
     alert("カメラデバイスの取得に失敗しました。");
   }
+}
+
+/**
+ * カメラ台数の選択に応じてUIを更新する。
+ */
+export function updateCameraCountUI() {
+    const count = parseInt(uiElements.cameraCountSelect.value, 10);
+    uiElements.cameraSelect2Container.style.display = count === 2 ? 'block' : 'none';
 }

@@ -7,8 +7,10 @@ export const callControls = document.getElementById("callControls");
 export const statsControls = document.getElementById("statsControls");
 export const ptzControls = document.getElementById("ptzControls");
 
+export const cameraCountSelect = document.getElementById("cameraCount");
 export const cameraSelect1 = document.getElementById("cameraSelect1");
 export const cameraSelect2 = document.getElementById("cameraSelect2");
+export const cameraSelect2Container = document.getElementById("cameraSelect2Container");
 export const resolutionSelect = document.getElementById("resolution");
 export const framerateSelect = document.getElementById("framerate");
 export const codecSelect = document.getElementById("codecSelect");
@@ -52,6 +54,7 @@ export const panSlider = document.getElementById("panSlider");
 export const panValue = document.getElementById("panValue");
 export const ptzResetBtn = document.getElementById("ptzResetBtn");
 export const ptzTargetInputs = document.querySelectorAll('input[name="ptzTarget"]');
+export const ptzTargetCamera2Label = document.getElementById("ptzTargetCamera2Label");
 
 // Recording-related elements for Camera 1
 export const startRecordingBtn1 = document.getElementById("startRecording1");

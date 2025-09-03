@@ -167,11 +167,10 @@ export async function hangUp() {
  */
 export async function startCall() {
   uiElements.startCameraBtn.disabled = true;
+  const cameraCount = parseInt(uiElements.cameraCountSelect.value, 10);
   const selectedResolution = uiElements.resolutionSelect.value;
   const selectedFramerate = parseInt(uiElements.framerateSelect.value, 10);
   const selectedCodec = uiElements.codecSelect.value;
-  const selectedCameraId1 = uiElements.cameraSelect1.value; 
-  const selectedCameraId2 = uiElements.cameraSelect2.value; 
   
   const commonConstraints = {
     ...RESOLUTIONS[selectedResolution], 
@@ -180,30 +179,42 @@ export async function startCall() {
     tilt: true, 
     zoom: true 
   };
-
-  const constraints1 = { video: { deviceId: { exact: selectedCameraId1 }, ...commonConstraints }, audio: false };
-  const constraints2 = { video: { deviceId: { exact: selectedCameraId2 }, ...commonConstraints }, audio: false };
+  
+  const streams = [];
+  const tracks = {};
 
   try {
+    // カメラ1のストリームを取得
+    const selectedCameraId1 = uiElements.cameraSelect1.value;
+    const constraints1 = { video: { deviceId: { exact: selectedCameraId1 }, ...commonConstraints }, audio: false };
     const stream1 = await navigator.mediaDevices.getUserMedia(constraints1);
-    const stream2 = await navigator.mediaDevices.getUserMedia(constraints2);
-    state.setLocalStreams([stream1, stream2]);
-
+    streams.push(stream1);
+    tracks.camera1 = stream1.getVideoTracks()[0];
     uiElements.localVideo1.srcObject = stream1;
-    uiElements.localVideo2.srcObject = stream2;
     uiElements.localVideo1.style.display = 'block';
-    uiElements.localVideo2.style.display = 'block';
+
+    // カメラ2が選択されていればストリームを取得
+    if (cameraCount === 2) {
+        const selectedCameraId2 = uiElements.cameraSelect2.value;
+        const constraints2 = { video: { deviceId: { exact: selectedCameraId2 }, ...commonConstraints }, audio: false };
+        const stream2 = await navigator.mediaDevices.getUserMedia(constraints2);
+        streams.push(stream2);
+        tracks.camera2 = stream2.getVideoTracks()[0];
+        uiElements.localVideo2.srcObject = stream2;
+        uiElements.localVideo2.style.display = 'block';
+    } else {
+        uiElements.localVideo2.srcObject = null;
+        uiElements.localVideo2.style.display = 'none';
+    }
     
-    const tracks = {
-      camera1: stream1.getVideoTracks()[0],
-      camera2: stream2.getVideoTracks()[0]
-    };
+    state.setLocalStreams(streams);
     state.setVideoTracks(tracks);
 
     const pc = createPeerConnection();
     state.setPeerConnection(pc);
-    stream1.getTracks().forEach(track => state.peerConnection.addTrack(track, stream1));
-    stream2.getTracks().forEach(track => state.peerConnection.addTrack(track, stream2));
+    streams.forEach(stream => {
+        stream.getTracks().forEach(track => state.peerConnection.addTrack(track, stream));
+    });
     
     ptz.setupPtzDataChannel();
 
@@ -219,7 +230,11 @@ export async function startCall() {
     const modifiedSDP = preferCodec(offer.sdp, selectedCodec);
     await state.peerConnection.setLocalDescription({ type: offer.type, sdp: modifiedSDP });
 
-    await setDoc(callRef, { offer: { type: offer.type, sdp: modifiedSDP } });
+    // 通話ドキュメントにカメラ台数も保存
+    await setDoc(callRef, { 
+      offer: { type: offer.type, sdp: modifiedSDP },
+      cameraCount: cameraCount 
+    });
 
     uiElements.callIdDisplay.textContent = callRef.id;
     uiElements.callControls.style.display = "block";
@@ -253,14 +268,22 @@ export async function joinCall() {
     const callRef = doc(db, "calls", callId);
     state.setCallDocRef(callRef);
     const callSnapshot = await getDoc(callRef);
-    if (!callSnapshot.exists() || !callSnapshot.data().offer) {
+    const callData = callSnapshot.data();
+
+    if (!callSnapshot.exists() || !callData.offer) {
       alert("無効なCall IDです。");
       ui.resetUI();
       return;
     }
     
-    const offer = callSnapshot.data().offer;
-    
+    const offer = callData.offer;
+    const cameraCount = callData.cameraCount || 2; // 古い通話データのためにデフォルト値を設定
+
+    // UIをカメラ台数に合わせて調整
+    uiElements.remoteVideoContainer2.style.display = cameraCount === 2 ? 'inline-block' : 'none';
+    uiElements.ptzTargetCamera2Label.style.display = cameraCount === 2 ? 'inline' : 'none';
+
+
     const pc = createPeerConnection();
     state.setPeerConnection(pc);
     
@@ -275,7 +298,7 @@ export async function joinCall() {
     const cameraNames = ['camera1', 'camera2']; 
 
     state.peerConnection.ontrack = event => {
-      if (event.track.kind === 'video' && videoIndex < videoElements.length) {
+      if (event.track.kind === 'video' && videoIndex < cameraCount) {
         videoElements[videoIndex].srcObject = event.streams[0];
         containerElements[videoIndex].style.display = 'inline-block';
 

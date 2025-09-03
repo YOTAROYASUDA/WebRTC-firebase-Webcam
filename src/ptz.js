@@ -95,14 +95,21 @@ export function setupPtzDataChannel() {
     
     channel.onopen = () => {
         console.log("SENDER: DataChannel is open. Sending capabilities...");
-        const caps = {
-            camera1: state.videoTracks.camera1.getCapabilities(),
-            camera2: state.videoTracks.camera2.getCapabilities()
-        };
-        const ptzCaps = {
-            camera1: { zoom: caps.camera1.zoom, pan: caps.camera1.pan, tilt: caps.camera1.tilt },
-            camera2: { zoom: caps.camera2.zoom, pan: caps.camera2.pan, tilt: caps.camera2.tilt }
-        };
+        const ptzCaps = {};
+        
+        // videoTracks に存在するカメラの機能だけを収集
+        for (const cameraName in state.videoTracks) {
+            const track = state.videoTracks[cameraName];
+            if (track) {
+                const caps = track.getCapabilities();
+                ptzCaps[cameraName] = {
+                    zoom: caps.zoom,
+                    pan: caps.pan,
+                    tilt: caps.tilt
+                };
+            }
+        }
+        
         channel.send(JSON.stringify({ type: 'capabilities', data: ptzCaps }));
     };
     
@@ -132,6 +139,19 @@ export function handleReceiverDataChannel(event) {
         const msg = JSON.parse(e.data);
         if (msg.type === 'capabilities') {
             state.setPtzCapabilities(msg.data);
+            
+            // 2台目のカメラの機能が存在しない場合はUIを非表示にする
+            if (!msg.data.camera2) {
+                uiElements.ptzTargetCamera2Label.style.display = 'none';
+                // もしカメラ2が選択されていたら、カメラ1に戻す
+                if (state.activePtzTarget === 'camera2') {
+                    document.querySelector('input[name="ptzTarget"][value="camera1"]').checked = true;
+                    state.setActivePtzTarget('camera1');
+                }
+            } else {
+                 uiElements.ptzTargetCamera2Label.style.display = 'inline';
+            }
+            
             uiElements.ptzControls.style.display = 'block';
             updateReceiverPtzControls(state.activePtzTarget);
         }

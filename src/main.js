@@ -1,6 +1,6 @@
 // main.js
 
-import { updateRoleUI, populateCameraList } from './ui.js';
+import { updateRoleUI, populateCameraList, updateCameraCountUI } from './ui.js';
 import * as uiElements from './ui-elements.js';
 import * as state from './state.js';
 import { startCall, joinCall, hangUp } from './webrtc.js';
@@ -15,6 +15,8 @@ function initializeEventListeners() {
   uiElements.roleInputs.forEach(input => {
     input.addEventListener("change", (e) => updateRoleUI(e.target.value));
   });
+
+  uiElements.cameraCountSelect.addEventListener("change", updateCameraCountUI);
 
   uiElements.copyCallIdBtn.addEventListener("click", async () => {
     const callId = uiElements.callIdDisplay.textContent.trim();
