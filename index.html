@@ -97,7 +97,7 @@
         margin-left: 10px;
     }
   </style>
-  <script type="module" crossorigin src="/WebRTC-firebase-Webcam/assets/index-r9ZbPDE2.js"></script>
+  <script type="module" crossorigin src="/WebRTC-firebase-Webcam/assets/index-D-BYxuTn.js"></script>
 </head>
 <body>
   <div>
@@ -107,10 +107,17 @@
 
   <div id="senderControls" style="display: block;">
     <div>
+        <label for="cameraCount">カメラ台数:</label>
+        <select id="cameraCount">
+          <option value="1">1台</option>
+          <option value="2" selected>2台</option>
+        </select>
+    </div>
+    <div>
       <label for="cameraSelect1">カメラ選択 1:</label>
       <select id="cameraSelect1"></select>
     </div>
-    <div>
+    <div id="cameraSelect2Container">
       <label for="cameraSelect2">カメラ選択 2:</label>
       <select id="cameraSelect2"></select>
     </div>
@@ -150,7 +157,7 @@
       <h4>PTZ 操作 (矢印:パン/チルト, +/-:ズーム, R:リセット)</h4>
       <div id="ptzTargetSelector">
         <label><input type="radio" name="ptzTarget" value="camera1" checked> カメラ 1</label>
-        <label><input type="radio" name="ptzTarget" value="camera2"> カメラ 2</label>
+        <label id="ptzTargetCamera2Label"><input type="radio" name="ptzTarget" value="camera2"> カメラ 2</label>
       </div>
       <div>
         <strong>ズーム:</strong>
