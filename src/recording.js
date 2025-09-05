@@ -2,7 +2,6 @@
 
 import * as state from './state.js';
 import * as uiElements from './ui-elements.js';
-// 新しいライブラリ 'webm-duration-fix' をインポートします
 import fixWebmDuration from 'webm-duration-fix';
 
 /**
@@ -86,9 +85,6 @@ export async function downloadVideo(target) {
 
     try {
         const rawBlob = new Blob(chunks, { type: 'video/webm' });
-        
-        // ★★★ 新しいライブラリの関数を呼び出すように変更 ★★★
-        // このライブラリはPromiseを返すので await で待ちます
         const seekableBlob = await fixWebmDuration(rawBlob);
 
         const url = URL.createObjectURL(seekableBlob);
