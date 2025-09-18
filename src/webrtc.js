@@ -14,6 +14,7 @@ import { stopRecording } from './recording.js';
 // =================================================================================
 
 export const RESOLUTIONS = {
+  vga: { width: 640, height: 360 },
   hd: { width: 1280, height: 720 },
   fhd: { width: 1920, height: 1080 },
   fourK: { width: 3840, height: 2160 },

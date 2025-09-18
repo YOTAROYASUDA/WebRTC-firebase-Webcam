@@ -90,3 +90,9 @@ video {
     font-size: 12px;
     margin-left: 10px;
 }
+.video-draggable {
+    cursor: grab;
+}
+.video-dragging {
+    cursor: grabbing;
+}
