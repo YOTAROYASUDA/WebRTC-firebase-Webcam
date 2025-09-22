@@ -9,7 +9,7 @@ import * as uiElements from './ui-elements.js';
  * @param {string} type - 'pan', 'tilt', or 'zoom'
  * @param {number} value - 適用する値
  */
-async function applyPtzConstraint(target, type, value) {
+export async function applyPtzConstraint(target, type, value) {
   const track = state.videoTracks[target];
   if (document.visibilityState !== 'visible' || !track || track.readyState !== 'live') {
     console.warn(`SENDER: Cannot apply PTZ to ${target}. Page not visible or track not live.`);

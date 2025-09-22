@@ -67,3 +67,10 @@ export const startRecordingBtn2 = document.getElementById("startRecording2");
 export const stopRecordingBtn2 = document.getElementById("stopRecording2");
 export const downloadVideoBtn2 = document.getElementById("downloadVideo2");
 export const recordingStatus2 = document.getElementById("recordingStatus2");
+
+// ArUco Tracking elements
+export const arucoControls = document.getElementById("arucoControls");
+export const arucoTargetSelect = document.getElementById("arucoTargetSelect");
+export const startArucoTrackingBtn = document.getElementById("startArucoTrackingBtn");
+export const stopArucoTrackingBtn = document.getElementById("stopArucoTrackingBtn");
+export const arucoTrackingStatus = document.getElementById("arucoTrackingStatus");

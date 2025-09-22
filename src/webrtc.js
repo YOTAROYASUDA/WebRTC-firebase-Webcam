@@ -8,13 +8,13 @@ import * as uiElements from './ui-elements.js';
 import * as ptz from './ptz.js';
 import { stopStatsRecording, updateResolutionDisplay, startStatsRecording } from './stats.js';
 import { stopRecording } from './recording.js';
+import { stop as stopArucoTracking } from './aruco.js';
 
 // =================================================================================
 // --- 定数定義 (Constants) ---
 // =================================================================================
 
 export const RESOLUTIONS = {
-  vga: { width: 640, height: 360 },
   hd: { width: 1280, height: 720 },
   fhd: { width: 1920, height: 1080 },
   fourK: { width: 3840, height: 2160 },
@@ -154,6 +154,7 @@ function listenForRemoteCandidates(candidateCollection) {
  * 通話を終了し、すべてのリソースをクリーンアップする。
  */
 export async function hangUp() {
+  stopArucoTracking();
   stopStatsRecording();
   // 両方の録画を停止
   stopRecording('camera1');
@@ -260,6 +261,7 @@ export async function startCall() {
 
     uiElements.callIdDisplay.textContent = callRef.id;
     uiElements.callControls.style.display = "block";
+    uiElements.arucoControls.style.display = "block";
 
     onSnapshot(callRef, snapshot => {
       const data = snapshot.data();

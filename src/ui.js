@@ -21,6 +21,7 @@ export function resetUI() {
   uiElements.ptzControls.style.display = "none";
   uiElements.callControls.style.display = "none";
   uiElements.statsControls.style.display = "none";
+  uiElements.arucoControls.style.display = 'none';
 
   uiElements.callIdDisplay.textContent = "";
   uiElements.callIdInput.value = "";
@@ -35,6 +36,12 @@ export function resetUI() {
   uiElements.startStatsRecordingBtn.disabled = false;
   uiElements.stopStatsRecordingBtn.disabled = true;
   uiElements.downloadStatsBtn.disabled = true;
+  
+  // Reset ArUco tracking UI
+  uiElements.startArucoTrackingBtn.disabled = false;
+  uiElements.stopArucoTrackingBtn.disabled = true;
+  uiElements.arucoTargetSelect.disabled = false;
+  uiElements.arucoTrackingStatus.textContent = "";
 
   // Reset recording UI for both cameras
   ['camera1', 'camera2'].forEach(target => {

@@ -7,6 +7,7 @@ import { startCall, joinCall, hangUp } from './webrtc.js';
 import { sendPtzCommand, updateReceiverPtzControls } from './ptz.js';
 import { startStatsRecording, stopStatsRecording, downloadStatsAsCsv } from './stats.js';
 import { startRecording, stopRecording, downloadVideo } from './recording.js';
+import { start as startArucoTracking, stop as stopArucoTracking } from './aruco.js';
 
 /**
  * アプリケーションのすべてのイベントリスナーを初期化する。
@@ -47,6 +48,22 @@ function initializeEventListeners() {
   uiElements.startRecordingBtn2.addEventListener("click", () => startRecording('camera2'));
   uiElements.stopRecordingBtn2.addEventListener("click", () => stopRecording('camera2'));
   uiElements.downloadVideoBtn2.addEventListener("click", () => downloadVideo('camera2'));
+
+  // ArUco Tracking event listeners
+  uiElements.startArucoTrackingBtn.addEventListener("click", () => {
+    const target = uiElements.arucoTargetSelect.value;
+    startArucoTracking(target);
+    uiElements.startArucoTrackingBtn.disabled = true;
+    uiElements.stopArucoTrackingBtn.disabled = false;
+    uiElements.arucoTargetSelect.disabled = true;
+  });
+
+  uiElements.stopArucoTrackingBtn.addEventListener("click", () => {
+    stopArucoTracking();
+    uiElements.startArucoTrackingBtn.disabled = false;
+    uiElements.stopArucoTrackingBtn.disabled = true;
+    uiElements.arucoTargetSelect.disabled = false;
+  });
 
   uiElements.ptzTargetInputs.forEach(input => {
     input.addEventListener('change', (e) => {
@@ -145,88 +162,6 @@ function initializeEventListeners() {
     uiElements.fullscreenBtn1.textContent = isFullscreen && document.fullscreenElement === uiElements.remoteVideoContainer1 ? '通常表示' : 'フルスクリーン';
     uiElements.fullscreenBtn2.textContent = isFullscreen && document.fullscreenElement === uiElements.remoteVideoContainer2 ? '通常表示' : 'フルスクリーン';
   });
-
-  /**
-   * マウス操作によるPTZコントロールをセットアップする関数
-   * @param {HTMLElement} container - ビデオのコンテナ要素
-   */
-  const setupPtzMouseControls = (container) => {
-    container.classList.add('video-draggable');
-
-    let isDragging = false;
-    let lastX, lastY;
-
-    const videoElement = container.querySelector('video');
-    if (videoElement) {
-        videoElement.addEventListener('wheel', (event) => {
-            if (state.currentRole !== 'receiver') return;
-            const delta = Math.sign(event.deltaY);
-            const caps = getActiveCaps();
-            if (caps.zoom) {
-                const currentZoom = getSliderValue('zoom');
-                const newZoom = currentZoom - (delta * caps.zoom.step * 5);
-                sendPtzCommand('zoom', newZoom);
-            }
-            event.preventDefault();
-        });
-    }
-
-    const startDragging = (event) => {
-      // 左クリックのみを対象
-      if (event.button !== 0 || state.currentRole !== 'receiver') return;
-      
-      isDragging = true;
-      container.classList.add('video-dragging');
-      lastX = event.clientX;
-      lastY = event.clientY;
-
-      // ドキュメント全体でマウスの動きとボタンを離したことを監視
-      document.addEventListener('mousemove', onDragging);
-      document.addEventListener('mouseup', stopDragging);
-      
-      event.preventDefault();
-    };
-
-    // --- 変更点：ドラッグ中の処理 ---
-    const onDragging = (event) => {
-      if (!isDragging) return;
-
-      const dx = event.clientX - lastX;
-      const dy = event.clientY - lastY;
-      
-      const caps = getActiveCaps();
-
-      if (caps.pan && Math.abs(dx) > 2) {
-        const newPan = getSliderValue('pan') - (Math.sign(dx) * caps.pan.step);
-        sendPtzCommand('pan', newPan);
-        lastX = event.clientX;
-      }
-
-      if (caps.tilt && Math.abs(dy) > 2) {
-        const newTilt = getSliderValue('tilt') + (Math.sign(dy) * caps.tilt.step);
-        sendPtzCommand('tilt', newTilt);
-        lastY = event.clientY;
-      }
-      
-      event.preventDefault();
-    };
-
-    const stopDragging = () => {
-      if (isDragging) {
-        isDragging = false;
-        container.classList.remove('video-dragging');
-        
-        document.removeEventListener('mousemove', onDragging);
-        document.removeEventListener('mouseup', stopDragging);
-      }
-    };
-    
-    container.addEventListener('mousedown', startDragging);
-  };
-
-  // 各リモートビデオコンテナにマウス操作をセットアップ
-  setupPtzMouseControls(uiElements.remoteVideoContainer1);
-  setupPtzMouseControls(uiElements.remoteVideoContainer2);
 }
 
 // =================================================================================
