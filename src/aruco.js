@@ -14,8 +14,8 @@ let targetCameraName;
 
 // --- PID制御のための設定 (変更なし) ---
 const PID_GAINS = {
-    pan:  { Kp: 0.01, Ki: -0.01, Kd: -0.3 },
-    tilt: { Kp: 0.01, Ki: -0.01, Kd: -0.3 }
+    pan:  { Kp: 0.0005, Ki: 0.01, Kd: 0.01 },
+    tilt: { Kp: 0.0005, Ki: 0.01, Kd: 0.01 }
 };
 let panState = { integral: 0, previousError: 0 };
 let tiltState = { integral: 0, previousError: 0 };
@@ -94,51 +94,72 @@ function processVideo() {
 
     try {
         frameCounter++;
-        if (frameCounter % 2 !== 0) {
+        // ★★★ 変更点 1: フレーム処理の間隔を4フレームに1回に ★★★
+        if (frameCounter % 4 !== 0) {
             animationFrameId = requestAnimationFrame(processVideo);
             return;
         }
 
-        const w = videoElement.videoWidth;
-        const h = videoElement.videoHeight;
-        if (w === 0 || h === 0) {
+        const videoW = videoElement.videoWidth;
+        const videoH = videoElement.videoHeight;
+        if (videoW === 0 || videoH === 0) {
             animationFrameId = requestAnimationFrame(processVideo);
             return;
         }
         
-        // ★★★ 最終修正点：Matオブジェクトのサイズも変更する ★★★
-        if (processCanvas.width !== w || processCanvas.height !== h) {
-            processCanvas.width = w;
-            processCanvas.height = h;
-            canvasOutput.width = w;
-            canvasOutput.height = h;
+        // ★★★ 変更点 2: 処理用の解像度を定義 (幅320pxに固定) ★★★
+        const processWidth = 320;
+        const processHeight = (videoH / videoW) * processWidth;
+        
+        // processCanvasとMatオブジェクトのサイズを処理用解像度に合わせる
+        if (processCanvas.width !== processWidth || processCanvas.height !== processHeight) {
+            processCanvas.width = processWidth;
+            processCanvas.height = processHeight;
+            
+            // 表示用Canvasのサイズは元のビデオ解像度のまま
+            canvasOutput.width = videoW;
+            canvasOutput.height = videoH;
 
             // 既存のMatを解放し、正しいサイズで再生成する
             if (!src.isDeleted()) src.delete();
             if (!gray.isDeleted()) gray.delete();
             if (!rgb.isDeleted()) rgb.delete();
 
-            src = new cv.Mat(h, w, cv.CV_8UC4);
-            gray = new cv.Mat(h, w, cv.CV_8UC1);
-            rgb = new cv.Mat(h, w, cv.CV_8UC3);
+            src = new cv.Mat(processHeight, processWidth, cv.CV_8UC4);
+            gray = new cv.Mat(processHeight, processWidth, cv.CV_8UC1);
+            rgb = new cv.Mat(processHeight, processWidth, cv.CV_8UC3);
         }
 
-        // ビデオフレームを内部キャンバスに描画し、Matに変換
-        processCtx.drawImage(videoElement, 0, 0, w, h);
-        const imageData = processCtx.getImageData(0, 0, w, h);
+        // ★★★ 変更点 3: 内部キャンバスにビデオフレームを縮小して描画 ★★★
+        processCtx.drawImage(videoElement, 0, 0, processWidth, processHeight);
+        const imageData = processCtx.getImageData(0, 0, processWidth, processHeight);
         src.data.set(imageData.data);
 
-        // グレースケール変換とマーカー検出
+        // グレースケール変換とマーカー検出 (処理は縮小画像に対して行う)
         cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
         detector.detectMarkers(gray, corners, ids);
         
+        const outputCtx = canvasOutput.getContext('2d');
+        outputCtx.clearRect(0, 0, videoW, videoH);
+
         if (ids.rows > 0) {
             cv.cvtColor(src, rgb, cv.COLOR_RGBA2RGB);
             cv.drawDetectedMarkers(rgb, corners, ids);
-            calculateAndApplyConstraint(corners.get(0), w, h);
-            cv.imshow(canvasOutput, rgb);
+            
+            // ★★★ 変更点 4: PTZ制御の誤差計算は縮小後のサイズを基準に行う ★★★
+            calculateAndApplyConstraint(corners.get(0), processWidth, processHeight);
+
+            // ★★★ 変更点 5: 表示用に縮小画像を元のサイズに拡大して描画 ★★★
+            // 一時的なインメモリCanvasを使ってMatからImageDataに変換し、それを拡大描画する
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = processWidth;
+            tempCanvas.height = processHeight;
+            cv.imshow(tempCanvas, rgb);
+            outputCtx.drawImage(tempCanvas, 0, 0, videoW, videoH);
+
         } else {
-            cv.imshow(canvasOutput, src);
+            // マーカーがない場合は何も表示しない (または元の映像をdrawImageで描画しても良い)
+            // outputCtx.drawImage(videoElement, 0, 0, videoW, videoH);
         }
 
     } catch (error) {
