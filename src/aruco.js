@@ -31,8 +31,8 @@ let animationFrameId;
 let targetCameraName;
 
 const PID_GAINS = {
-    pan:  { Kp: 10000, Ki: 0, Kd: 0 },
-    tilt: { Kp: 10000, Ki: 0, Kd: 0}
+    pan:  { Kp: 10000, Ki: 100, Kd: 100 },
+    tilt: { Kp: -10000, Ki: 100, Kd: 100}
 };
 let panState = { integral: 0, previousError: 0 };
 let tiltState = { integral: 0, previousError: 0 };
