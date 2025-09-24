@@ -3,6 +3,24 @@
 import * as ptz from './ptz.js';
 import * as state from './state.js';
 import * as uiElements from './ui-elements.js';
+import * as evaluation from './evaluation.js'; // 評価機能のインポート
+
+// 設定 
+
+const PROCESSING_RESOLUTION_WIDTH = 320;
+
+/**
+ * 何フレームごとにマーカー検出処理を行うかの間隔。
+ * この値を大きくするほど処理は軽くなりますが、マーカーへの追従がカクカクになります。
+ * 3 or 4あたりが推奨値です。1が最もスムーズですが最も重くなります。
+ */
+const FRAME_PROCESSING_INTERVAL = 4;
+
+/**
+ * 評価データを何回の検出ごとに記録するかの間隔。
+ * この値を大きくすると、評価機能による負荷をさらに軽減できます。
+ */
+const LOG_INTERVAL = 5; 
 
 let videoElement;
 let canvasOutput;
@@ -12,31 +30,27 @@ let trackingActive = false;
 let animationFrameId;
 let targetCameraName;
 
-// --- PID制御のための設定 (変更なし) ---
 const PID_GAINS = {
-    pan:  { Kp: 0.0005, Ki: 0.01, Kd: 0.01 },
-    tilt: { Kp: 0.0005, Ki: 0.01, Kd: 0.01 }
+    pan:  { Kp: 10000, Ki: 0, Kd: 0 },
+    tilt: { Kp: 10000, Ki: 0, Kd: 0}
 };
 let panState = { integral: 0, previousError: 0 };
 let tiltState = { integral: 0, previousError: 0 };
 let lastTime = 0;
 
 let frameCounter = 0;
+let logCounter = 0; // 評価ログ用のカウンター
 
-// --- 再利用するOpenCVオブジェクト ---
 let detector, src, gray, rgb, corners, ids;
 
-// OpenCVの初期化が完了したかを管理するPromise
 const openCvReadyPromise = new Promise(resolve => {
     cv.onRuntimeInitialized = () => {
         console.log("OpenCV.js is fully initialized and ready.");
-        // 検出器などを一度だけ初期化
         const dictionary = cv.getPredefinedDictionary(cv.DICT_4X4_50);
         const parameters = new cv.aruco_DetectorParameters();
         const refineParameters = new cv.aruco_RefineParameters(10, 3, true);
         detector = new cv.aruco_ArucoDetector(dictionary, parameters, refineParameters);
         
-        // Matオブジェクトはここで一度生成する
         src = new cv.Mat();
         gray = new cv.Mat();
         rgb = new cv.Mat();
@@ -47,9 +61,6 @@ const openCvReadyPromise = new Promise(resolve => {
     };
 });
 
-/**
- * ArUcoマーカーの追跡を開始する
- */
 export async function start(target) {
     if (trackingActive) return;
     
@@ -70,14 +81,12 @@ export async function start(target) {
     panState = { integral: 0, previousError: 0 };
     tiltState = { integral: 0, previousError: 0 };
     lastTime = performance.now();
+    frameCounter = 0; // カウンターをリセット
+    logCounter = 0;
     
     canvasOutput = document.createElement('canvas');
     videoElement.parentElement.appendChild(canvasOutput);
-    canvasOutput.style.width = videoElement.clientWidth + 'px';
-    canvasOutput.style.height = videoElement.clientHeight + 'px';
     canvasOutput.style.position = 'absolute';
-    canvasOutput.style.top = videoElement.offsetTop + 'px';
-    canvasOutput.style.left = videoElement.offsetLeft + 'px';
     canvasOutput.style.pointerEvents = 'none';
 
     processCanvas = document.createElement('canvas');
@@ -86,41 +95,53 @@ export async function start(target) {
     processVideo();
 }
 
-/**
- * ビデオフレームを処理し、マーカーを検出して追跡するループ
- */
 function processVideo() {
-    if (!trackingActive) return;
+    if (!trackingActive) {
+        animationFrameId = requestAnimationFrame(processVideo);
+        return;
+    }
 
     try {
+        // ★ 変更点：指定した間隔のフレームでない場合は、処理をスキップ
         frameCounter++;
-        // ★★★ 変更点 1: フレーム処理の間隔を4フレームに1回に ★★★
-        if (frameCounter % 4 !== 0) {
+        if (frameCounter % FRAME_PROCESSING_INTERVAL !== 0) {
             animationFrameId = requestAnimationFrame(processVideo);
             return;
         }
 
-        const videoW = videoElement.videoWidth;
-        const videoH = videoElement.videoHeight;
-        if (videoW === 0 || videoH === 0) {
+        const originalWidth = videoElement.videoWidth;
+        const originalHeight = videoElement.videoHeight;
+        if (originalWidth === 0 || originalHeight === 0) {
             animationFrameId = requestAnimationFrame(processVideo);
             return;
         }
-        
-        // ★★★ 変更点 2: 処理用の解像度を定義 (幅320pxに固定) ★★★
-        const processWidth = 320;
-        const processHeight = (videoH / videoW) * processWidth;
-        
-        // processCanvasとMatオブジェクトのサイズを処理用解像度に合わせる
+
+        // ★ 変更点：処理解像度を計算
+        const scale = PROCESSING_RESOLUTION_WIDTH / originalWidth;
+        const processWidth = PROCESSING_RESOLUTION_WIDTH;
+        const processHeight = Math.round(originalHeight * scale);
+
+        // 処理用キャンバスのサイズを設定
         if (processCanvas.width !== processWidth || processCanvas.height !== processHeight) {
             processCanvas.width = processWidth;
             processCanvas.height = processHeight;
-            
-            // 表示用Canvasのサイズは元のビデオ解像度のまま
-            canvasOutput.width = videoW;
-            canvasOutput.height = videoH;
+        }
+        
+        // オーバーレイ用キャンバスのサイズは元のビデオ表示サイズに合わせる
+        if (canvasOutput.width !== originalWidth || canvasOutput.height !== originalHeight) {
+             canvasOutput.width = originalWidth;
+             canvasOutput.height = originalHeight;
+             canvasOutput.style.width = videoElement.clientWidth + 'px';
+             canvasOutput.style.height = videoElement.clientHeight + 'px';
+             canvasOutput.style.top = videoElement.offsetTop + 'px';
+             canvasOutput.style.left = videoElement.offsetLeft + 'px';
+        }
 
-            // 既存のMatを解放し、正しいサイズで再生成する
+        // ★ 変更点：ビデオフレームを"縮小して"内部キャンバスに描画
+        processCtx.drawImage(videoElement, 0, 0, processWidth, processHeight);
+
+        // Matオブジェクトのサイズも処理用に合わせる
+        if (src.cols !== processWidth || src.rows !== processHeight) {
             if (!src.isDeleted()) src.delete();
             if (!gray.isDeleted()) gray.delete();
             if (!rgb.isDeleted()) rgb.delete();
@@ -130,51 +151,57 @@ function processVideo() {
             rgb = new cv.Mat(processHeight, processWidth, cv.CV_8UC3);
         }
 
-        // ★★★ 変更点 3: 内部キャンバスにビデオフレームを縮小して描画 ★★★
-        processCtx.drawImage(videoElement, 0, 0, processWidth, processHeight);
         const imageData = processCtx.getImageData(0, 0, processWidth, processHeight);
         src.data.set(imageData.data);
 
-        // グレースケール変換とマーカー検出 (処理は縮小画像に対して行う)
         cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
         detector.detectMarkers(gray, corners, ids);
         
+        // 評価ログを記録するかどうかの判定
+        logCounter++;
+        const shouldLog = logCounter % LOG_INTERVAL === 0;
+
         const outputCtx = canvasOutput.getContext('2d');
-        outputCtx.clearRect(0, 0, videoW, videoH);
+        outputCtx.clearRect(0, 0, canvasOutput.width, canvasOutput.height); // 描画前にクリア
 
         if (ids.rows > 0) {
-            cv.cvtColor(src, rgb, cv.COLOR_RGBA2RGB);
-            cv.drawDetectedMarkers(rgb, corners, ids);
-            
-            // ★★★ 変更点 4: PTZ制御の誤差計算は縮小後のサイズを基準に行う ★★★
-            calculateAndApplyConstraint(corners.get(0), processWidth, processHeight);
+            // PTZ制御と評価データ計算
+            const evalData = calculateAndApplyConstraint(corners.get(0), processWidth, processHeight);
+            if (shouldLog) {
+                evaluation.logData({ detected: 1, ...evalData });
+            }
 
-            // ★★★ 変更点 5: 表示用に縮小画像を元のサイズに拡大して描画 ★★★
-            // 一時的なインメモリCanvasを使ってMatからImageDataに変換し、それを拡大描画する
-            const tempCanvas = document.createElement('canvas');
-            tempCanvas.width = processWidth;
-            tempCanvas.height = processHeight;
-            cv.imshow(tempCanvas, rgb);
-            outputCtx.drawImage(tempCanvas, 0, 0, videoW, videoH);
+            // マーカーの枠を描画する
+            const cornerPoints = corners.get(0).data32F;
+            outputCtx.strokeStyle = 'red';
+            outputCtx.lineWidth = 3;
+            outputCtx.beginPath();
+            // 座標を元の解像度スケールに戻して描画
+            outputCtx.moveTo(cornerPoints[0] / scale, cornerPoints[1] / scale);
+            for (let i = 2; i < cornerPoints.length; i += 2) {
+                outputCtx.lineTo(cornerPoints[i] / scale, cornerPoints[i+1] / scale);
+            }
+            outputCtx.closePath();
+            outputCtx.stroke();
 
         } else {
-            // マーカーがない場合は何も表示しない (または元の映像をdrawImageで描画しても良い)
-            // outputCtx.drawImage(videoElement, 0, 0, videoW, videoH);
+            if (shouldLog) {
+                evaluation.logData({ 
+                    detected: 0, markerX: null, markerY: null, errorX: null, errorY: null, 
+                    panAdjustment: null, tiltAdjustment: null 
+                });
+            }
         }
 
     } catch (error) {
         console.error("ArUco追跡中にエラー:", error);
         uiElements.arucoTrackingStatus.textContent = "エラーが発生しました。";
         stop();
-        return;
     }
 
     animationFrameId = requestAnimationFrame(processVideo);
 }
 
-/**
- * PID制御に基づいてPTZコマンドを計算して適用する (変更なし)
- */
 function calculateAndApplyConstraint(markerCorners, frameWidth, frameHeight) {
     const now = performance.now();
     const dt = (now - lastTime) / 1000.0;
@@ -183,8 +210,8 @@ function calculateAndApplyConstraint(markerCorners, frameWidth, frameHeight) {
     let centerX = 0;
     let centerY = 0;
     for (let i = 0; i < 4; ++i) {
-        centerX += markerCorners.data32S[i * 2];
-        centerY += markerCorners.data32S[i * 2 + 1];
+        centerX += markerCorners.data32F[i * 2];
+        centerY += markerCorners.data32F[i * 2 + 1];
     }
     centerX /= 4;
     centerY /= 4;
@@ -195,35 +222,37 @@ function calculateAndApplyConstraint(markerCorners, frameWidth, frameHeight) {
     uiElements.arucoTrackingStatus.textContent = `マーカー検出: (x: ${Math.round(centerX)}, y: ${Math.round(centerY)})`;
 
     const track = state.videoTracks[targetCameraName];
-    if (!track) return;
+    if (!track) return null;
 
     const settings = track.getSettings();
     const capabilities = track.getCapabilities();
     
+    let panAdjustment = 0;
+    let tiltAdjustment = 0;
+
     if (settings.pan !== undefined && capabilities.pan) {
-        panState.integral += errorX * dt;
-        panState.integral = Math.max(-1, Math.min(1, panState.integral));
+        panState.integral = Math.max(-1, Math.min(1, panState.integral + errorX * dt));
         const derivative = (errorX - panState.previousError) / dt;
         panState.previousError = errorX;
-        const panAdjustment = (PID_GAINS.pan.Kp * errorX) + (PID_GAINS.pan.Ki * panState.integral) + (PID_GAINS.pan.Kd * derivative);
+        panAdjustment = (PID_GAINS.pan.Kp * errorX) + (PID_GAINS.pan.Ki * panState.integral) + (PID_GAINS.pan.Kd * derivative);
         const newPan = Math.max(capabilities.pan.min, Math.min(capabilities.pan.max, settings.pan + panAdjustment));
         ptz.applyPtzConstraint(targetCameraName, 'pan', newPan);
     }
     
     if (settings.tilt !== undefined && capabilities.tilt) {
-        tiltState.integral += errorY * dt;
-        tiltState.integral = Math.max(-1, Math.min(1, tiltState.integral));
+        tiltState.integral = Math.max(-1, Math.min(1, tiltState.integral + errorY * dt));
         const derivative = (errorY - tiltState.previousError) / dt;
         tiltState.previousError = errorY;
-        const tiltAdjustment = (PID_GAINS.tilt.Kp * errorY) + (PID_GAINS.tilt.Ki * tiltState.integral) + (PID_GAINS.tilt.Kd * derivative);
+        tiltAdjustment = (PID_GAINS.tilt.Kp * errorY) + (PID_GAINS.tilt.Ki * tiltState.integral) + (PID_GAINS.tilt.Kd * derivative);
         const newTilt = Math.max(capabilities.tilt.min, Math.min(capabilities.tilt.max, settings.tilt + tiltAdjustment));
         ptz.applyPtzConstraint(targetCameraName, 'tilt', newTilt);
     }
+    
+    return {
+        markerX: centerX, markerY: centerY, errorX, errorY, panAdjustment, tiltAdjustment
+    };
 }
 
-/**
- * ArUcoマーカーの追跡を停止する
- */
 export function stop() {
     if (!trackingActive) return;
     trackingActive = false;

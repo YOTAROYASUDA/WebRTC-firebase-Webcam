@@ -8,6 +8,12 @@ import { sendPtzCommand, updateReceiverPtzControls } from './ptz.js';
 import { startStatsRecording, stopStatsRecording, downloadStatsAsCsv } from './stats.js';
 import { startRecording, stopRecording, downloadVideo } from './recording.js';
 import { start as startArucoTracking, stop as stopArucoTracking } from './aruco.js';
+import * as evaluation from './evaluation.js';
+
+
+// =================================================================================
+// --- イベントリスナーの初期化 (Initialize Event Listeners) ---
+// =================================================================================
 
 /**
  * アプリケーションのすべてのイベントリスナーを初期化する。
@@ -72,6 +78,8 @@ function initializeEventListeners() {
       }
     });
   });
+
+  
 
   const getSliderValue = (type) => parseFloat(document.getElementById(`${type}Slider`).value);
   
@@ -171,3 +179,12 @@ function initializeEventListeners() {
 updateRoleUI(document.querySelector('input[name="role"]:checked').value);
 initializeEventListeners();
 populateCameraList();
+
+// 評価コントロールのイベントリスナーを設定
+const startEvaluationBtn = document.getElementById('startEvaluationBtn');
+const stopEvaluationBtn = document.getElementById('stopEvaluationBtn');
+const downloadCsvBtn = document.getElementById('downloadCsvBtn');
+
+startEvaluationBtn.addEventListener('click', evaluation.startEvaluation);
+stopEvaluationBtn.addEventListener('click', evaluation.stopEvaluation);
+downloadCsvBtn.addEventListener('click', evaluation.downloadCSV);

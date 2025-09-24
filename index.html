@@ -65,7 +65,15 @@
       <button id="startArucoTrackingBtn">追跡開始</button>
       <button id="stopArucoTrackingBtn" disabled>追跡停止</button>
       <span id="arucoTrackingStatus"></span>
+      <div id="evaluationControl" class="control-section">
+        <h3>追跡評価</h3>
+        <p>ステータス: <span id="evaluationStatus">評価停止中</span></p>
+        <button id="startEvaluationBtn">評価開始</button>
+        <button id="stopEvaluationBtn" disabled>評価停止</button>
+        <button id="downloadCsvBtn" disabled>CSVダウンロード</button>
+      </div>
     </div>
+
   </div>
 
   <div id="receiverControls" style="display: none;">
