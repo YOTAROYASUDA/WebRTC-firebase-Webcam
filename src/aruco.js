@@ -5,38 +5,41 @@ import * as state from './state.js';
 import * as uiElements from './ui-elements.js';
 
 let videoElement;
-let canvasOutput; // ユーザーに見せるためのCanvas
-let processCanvas; // 処理用の非表示Canvas
-let processCtx; // 処理用CanvasのContext
+let canvasOutput;
+let processCanvas;
+let processCtx;
 let trackingActive = false;
 let animationFrameId;
-let targetCameraName; // 'camera1' or 'camera2'
+let targetCameraName;
 
-// OpenCV objects
-let detector;
-
-// ★★★ 修正点：追跡感度を調整するための定数を追加 ★★★
-const MOVEMENT_SENSITIVITY = 0.01; // この値を大きくすると速く、小さくすると遅くなる
-
+// --- PID制御のための設定 ---
 const PID_GAINS = {
-    pan: { Kp: 0.3 }, // 水平方向の向きを反転（-1で固定）
-    tilt: { Kp: -0.3 }  // 垂直方向の向きを反転（-1で固定）
+    pan:  { Kp: 0.01, Ki: -0.01, Kd: -0.3 },
+    tilt: { Kp: 0.01, Ki: -0.01, Kd: -0.3 }
 };
 
-// --- OpenCV 初期化管理 ---
+let panState = { integral: 0, previousError: 0 };
+let tiltState = { integral: 0, previousError: 0 };
+let lastTime = 0;
+
+// --- 再利用するOpenCVオブジェクト ---
+let detector;
+let src;
+let gray;
+let rgb;
+let corners;
+let ids;
+// --- ここまで ---
+
 const openCvReadyPromise = new Promise(resolve => {
-    // この関数は、index.htmlでopencv.jsが読み込まれた後に自動で設定される
     cv.onRuntimeInitialized = () => {
         console.log("OpenCV.js is fully initialized and ready.");
         resolve();
     };
 });
-// --- ここまで ---
-
 
 /**
  * ArUcoマーカーの追跡を開始する
- * @param {string} target - 'camera1' or 'camera2'
  */
 export async function start(target) {
     if (trackingActive) return;
@@ -55,7 +58,10 @@ export async function start(target) {
     
     trackingActive = true;
     
-    // --- Canvasのセットアップ ---
+    panState = { integral: 0, previousError: 0 };
+    tiltState = { integral: 0, previousError: 0 };
+    lastTime = performance.now();
+    
     canvasOutput = document.createElement('canvas');
     videoElement.parentElement.appendChild(canvasOutput);
     canvasOutput.style.width = videoElement.clientWidth + 'px';
@@ -67,12 +73,18 @@ export async function start(target) {
 
     processCanvas = document.createElement('canvas');
     processCtx = processCanvas.getContext('2d', { willReadFrequently: true });
-    // --- ここまで ---
 
+    // ★★★ 修正点：オブジェクトをここで一度だけ生成 ★★★
     const dictionary = cv.getPredefinedDictionary(cv.DICT_4X4_50);
     const parameters = new cv.aruco_DetectorParameters();
     const refineParameters = new cv.aruco_RefineParameters(10, 3, true);
     detector = new cv.aruco_ArucoDetector(dictionary, parameters, refineParameters);
+    
+    src = new cv.Mat();
+    gray = new cv.Mat();
+    rgb = new cv.Mat();
+    corners = new cv.MatVector();
+    ids = new cv.Mat();
 
     processVideo();
 }
@@ -82,10 +94,6 @@ export async function start(target) {
  */
 function processVideo() {
     if (!trackingActive) return;
-
-    let src, gray, rgb;
-    const corners = new cv.MatVector();
-    const ids = new cv.Mat();
 
     try {
         const w = videoElement.videoWidth;
@@ -97,13 +105,15 @@ function processVideo() {
         if (processCanvas.width !== w || processCanvas.height !== h) {
             processCanvas.width = w;
             processCanvas.height = h;
+            // ビデオサイズが変わった場合、Matのサイズも合わせる
+            src.create(h, w, cv.CV_8UC4);
+            gray.create(h, w, cv.CV_8UC1);
+            rgb.create(h, w, cv.CV_8UC3);
         }
 
         processCtx.drawImage(videoElement, 0, 0, w, h);
         const imageData = processCtx.getImageData(0, 0, w, h);
-        src = cv.matFromImageData(imageData);
-        gray = new cv.Mat();
-        rgb = new cv.Mat();
+        src.data.set(imageData.data); // matFromImageDataは毎回新しいMatを作るため、data.setで中身を更新
 
         cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
         detector.detectMarkers(gray, corners, ids);
@@ -121,24 +131,19 @@ function processVideo() {
         uiElements.arucoTrackingStatus.textContent = "エラーが発生しました。";
         stop();
         return;
-    } finally {
-        if (src) src.delete();
-        if (gray) gray.delete();
-        if (rgb) rgb.delete();
-        corners.delete();
-        ids.delete();
     }
 
     animationFrameId = requestAnimationFrame(processVideo);
 }
 
 /**
- * マーカー位置からPTZコマンドを計算して適用する
- * @param {cv.Mat} markerCorners - 検出されたマーカーの角の座標
- * @param {number} frameWidth - フレームの幅
- * @param {number} frameHeight - フレームの高さ
+ * PID制御に基づいてPTZコマンドを計算して適用する
  */
 function calculateAndApplyConstraint(markerCorners, frameWidth, frameHeight) {
+    const now = performance.now();
+    const dt = (now - lastTime) / 1000.0;
+    lastTime = now;
+    
     let centerX = 0;
     let centerY = 0;
     for (let i = 0; i < 4; ++i) {
@@ -148,9 +153,9 @@ function calculateAndApplyConstraint(markerCorners, frameWidth, frameHeight) {
     centerX /= 4;
     centerY /= 4;
 
-    const errorX = centerX - frameWidth / 2;
-    const errorY = centerY - frameHeight / 2;
-    
+    const errorX = (centerX - frameWidth / 2) / frameWidth;
+    const errorY = (centerY - frameHeight / 2) / frameHeight;
+
     uiElements.arucoTrackingStatus.textContent = `マーカー検出: (x: ${Math.round(centerX)}, y: ${Math.round(centerY)})`;
 
     const track = state.videoTracks[targetCameraName];
@@ -158,16 +163,27 @@ function calculateAndApplyConstraint(markerCorners, frameWidth, frameHeight) {
 
     const settings = track.getSettings();
     const capabilities = track.getCapabilities();
-
+    
     if (settings.pan !== undefined && capabilities.pan) {
-        // ★★★ 修正点：計算式を変更 ★★★
-        const panAdjustment = PID_GAINS.pan.Kp * (errorX / frameWidth) * MOVEMENT_SENSITIVITY;
+        panState.integral += errorX * dt;
+        panState.integral = Math.max(-1, Math.min(1, panState.integral));
+        
+        const derivative = (errorX - panState.previousError) / dt;
+        panState.previousError = errorX;
+
+        const panAdjustment = (PID_GAINS.pan.Kp * errorX) + (PID_GAINS.pan.Ki * panState.integral) + (PID_GAINS.pan.Kd * derivative);
         const newPan = Math.max(capabilities.pan.min, Math.min(capabilities.pan.max, settings.pan + panAdjustment));
         ptz.applyPtzConstraint(targetCameraName, 'pan', newPan);
     }
+    
     if (settings.tilt !== undefined && capabilities.tilt) {
-        // ★★★ 修正点：計算式を変更 ★★★
-        const tiltAdjustment = PID_GAINS.tilt.Kp * (errorY / frameHeight) * MOVEMENT_SENSITIVITY;
+        tiltState.integral += errorY * dt;
+        tiltState.integral = Math.max(-1, Math.min(1, tiltState.integral));
+
+        const derivative = (errorY - tiltState.previousError) / dt;
+        tiltState.previousError = errorY;
+        
+        const tiltAdjustment = (PID_GAINS.tilt.Kp * errorY) + (PID_GAINS.tilt.Ki * tiltState.integral) + (PID_GAINS.tilt.Kd * derivative);
         const newTilt = Math.max(capabilities.tilt.min, Math.min(capabilities.tilt.max, settings.tilt + tiltAdjustment));
         ptz.applyPtzConstraint(targetCameraName, 'tilt', newTilt);
     }
@@ -192,10 +208,15 @@ export function stop() {
     processCanvas = null;
     processCtx = null;
     
-    if (detector) {
-        detector.delete();
-        detector = null;
-    }
+    // ★★★ 修正点：再利用したオブジェクトをここでまとめて解放 ★★★
+    if (detector) detector.delete();
+    if (src) src.delete();
+    if (gray) gray.delete();
+    if (rgb) rgb.delete();
+    if (corners) corners.delete();
+    if (ids) ids.delete();
+
+    detector = src = gray = rgb = corners = ids = null;
 
     uiElements.arucoTrackingStatus.textContent = "停止しました。";
     console.log("ArUco tracking stopped.");
