@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <title>WebRTC webcam</title> 
-  <script type="module" crossorigin src="/WebRTC-firebase-Webcam/assets/index-B43dI6k2.js"></script>
+  <script type="module" crossorigin src="/WebRTC-firebase-Webcam/assets/index-D7roxM0h.js"></script>
   <link rel="stylesheet" crossorigin href="/WebRTC-firebase-Webcam/assets/index-BGQkFqdT.css">
 </head>
 <body>
@@ -31,7 +31,6 @@
 
     <label for="resolution">解像度:</label>
     <select id="resolution">
-      <option value="vga">640x360</option>
       <option value="hd">1280x720</option>
       <option value="fhd">1920x1080</option>
       <option value="fourK">3840x2160</option>
@@ -55,6 +54,27 @@
     </select>
 
     <button id="startCamera">カメラ開始 & 通話作成</button>
+
+    <div id="arucoControls" style="display: none; margin-top: 10px; border: 1px solid #ccc; padding: 10px;">
+      <h4>ArUcoマーカー追跡</h4>
+      <label>対象カメラ:
+        <select id="arucoTargetSelect">
+          <option value="camera1">カメラ 1</option>
+          <option value="camera2">カメラ 2</option>
+        </select>
+      </label>
+      <button id="startArucoTrackingBtn">追跡開始</button>
+      <button id="stopArucoTrackingBtn" disabled>追跡停止</button>
+      <span id="arucoTrackingStatus"></span>
+      <div id="evaluationControl" class="control-section">
+        <h3>追跡評価</h3>
+        <p>ステータス: <span id="evaluationStatus">評価停止中</span></p>
+        <button id="startEvaluationBtn">評価開始</button>
+        <button id="stopEvaluationBtn" disabled>評価停止</button>
+        <button id="downloadCsvBtn" disabled>CSVダウンロード</button>
+      </div>
+    </div>
+
   </div>
 
   <div id="receiverControls" style="display: none;">
@@ -137,5 +157,7 @@
     <div id="statsDisplay"></div>
   </div>
 
+      
+  <script defer src="opencv.js"></script>
 </body>
 </html>
