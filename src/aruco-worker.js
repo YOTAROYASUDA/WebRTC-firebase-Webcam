@@ -9,6 +9,7 @@ let detector, src, gray, corners, ids;
 // ImageBitmapを処理するためのオフスクリーンキャンバス
 let offscreenCanvas, ctx;
 
+
 /**
  * メインスレッドからのメッセージを処理するリスナー
  */
@@ -73,10 +74,6 @@ function processVideoFrame(payload) {
     const h = imageBitmap.height;
 
     try {
-        // --- 安定化のための修正点 ---
-        // 処理ループ内でメモリの解放(delete)は一切行わない。
-        // OpenCVの関数が内部で適切にメモリを上書き・管理することを信頼する。
-
         // 1. Matのサイズがフレームと異なれば、リサイズする
         if (src.cols !== w || src.rows !== h) {
             resizeMats(w, h);

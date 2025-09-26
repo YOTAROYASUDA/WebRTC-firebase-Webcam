@@ -5,21 +5,13 @@ import * as state from './state.js';
 import * as uiElements from './ui-elements.js';
 import * as evaluation from './evaluation.js'; // 評価機能のインポート
 
-// 設定 
-
+// 処理解像度の幅（高さはアスペクト比を維持して自動計算）
 const PROCESSING_RESOLUTION_WIDTH = 320;
 
-/**
- * 何フレームごとにマーカー検出処理を行うかの間隔。
- * この値を大きくするほど処理は軽くなりますが、マーカーへの追従がカクカクになります。
- * 3 or 4あたりが推奨値です。1が最もスムーズですが最も重くなります。
- */
+// 何フレームごとにマーカー検出処理を行うかの間隔
 const FRAME_PROCESSING_INTERVAL = 4;
 
-/**
- * 評価データを何回の検出ごとに記録するかの間隔。
- * この値を大きくすると、評価機能による負荷をさらに軽減できます。
- */
+// 評価データを何回の検出ごとに記録するかの間隔。
 const LOG_INTERVAL = 5; 
 
 let videoElement;
@@ -30,9 +22,10 @@ let trackingActive = false;
 let animationFrameId;
 let targetCameraName;
 
+// ゲイン設定
 const PID_GAINS = {
-    pan:  { Kp: 10000, Ki: 100, Kd: 100 },
-    tilt: { Kp: -10000, Ki: 100, Kd: 100}
+    pan:  { Kp: 84000, Ki: 0, Kd: 0 },
+    tilt: { Kp: -85000, Ki: 0, Kd: 0}
 };
 let panState = { integral: 0, previousError: 0 };
 let tiltState = { integral: 0, previousError: 0 };
@@ -43,6 +36,7 @@ let logCounter = 0; // 評価ログ用のカウンター
 
 let detector, src, gray, rgb, corners, ids;
 
+// OpenCV.jsの初期化完了を待つPromise
 const openCvReadyPromise = new Promise(resolve => {
     cv.onRuntimeInitialized = () => {
         console.log("OpenCV.js is fully initialized and ready.");
@@ -61,6 +55,7 @@ const openCvReadyPromise = new Promise(resolve => {
     };
 });
 
+// OpenCV.jsの初期化を開始
 export async function start(target) {
     if (trackingActive) return;
     
@@ -95,6 +90,7 @@ export async function start(target) {
     processVideo();
 }
 
+// メインの処理ループ
 function processVideo() {
     if (!trackingActive) {
         animationFrameId = requestAnimationFrame(processVideo);
@@ -102,7 +98,7 @@ function processVideo() {
     }
 
     try {
-        // ★ 変更点：指定した間隔のフレームでない場合は、処理をスキップ
+        // 指定した間隔のフレームでない場合は、処理をスキップ
         frameCounter++;
         if (frameCounter % FRAME_PROCESSING_INTERVAL !== 0) {
             animationFrameId = requestAnimationFrame(processVideo);
@@ -116,7 +112,7 @@ function processVideo() {
             return;
         }
 
-        // ★ 変更点：処理解像度を計算
+        // 処理解像度を計算
         const scale = PROCESSING_RESOLUTION_WIDTH / originalWidth;
         const processWidth = PROCESSING_RESOLUTION_WIDTH;
         const processHeight = Math.round(originalHeight * scale);
@@ -137,7 +133,7 @@ function processVideo() {
              canvasOutput.style.left = videoElement.offsetLeft + 'px';
         }
 
-        // ★ 変更点：ビデオフレームを"縮小して"内部キャンバスに描画
+        // ビデオフレームを"縮小して"内部キャンバスに描画
         processCtx.drawImage(videoElement, 0, 0, processWidth, processHeight);
 
         // Matオブジェクトのサイズも処理用に合わせる
@@ -202,6 +198,7 @@ function processVideo() {
     animationFrameId = requestAnimationFrame(processVideo);
 }
 
+// PTZ制御の計算と適用
 function calculateAndApplyConstraint(markerCorners, frameWidth, frameHeight) {
     const now = performance.now();
     const dt = (now - lastTime) / 1000.0;
@@ -253,6 +250,7 @@ function calculateAndApplyConstraint(markerCorners, frameWidth, frameHeight) {
     };
 }
 
+// PTZ制御と評価データ計算
 export function stop() {
     if (!trackingActive) return;
     trackingActive = false;

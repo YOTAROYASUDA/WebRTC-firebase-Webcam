@@ -5,7 +5,7 @@ import * as uiElements from './ui-elements.js';
 import fixWebmDuration from 'webm-duration-fix';
 
 /**
- * 指定されたカメラの録画を開始する
+ * カメラの録画を開始する
  * @param {string} target - 'camera1' or 'camera2'
  */
 export function startRecording(target) {
@@ -57,7 +57,7 @@ export function startRecording(target) {
 }
 
 /**
- * 指定されたカメラの録画を停止する
+ * カメラの録画を停止する
  * @param {string} target - 'camera1' or 'camera2'
  */
 export function stopRecording(target) {

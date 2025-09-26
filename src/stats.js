@@ -63,7 +63,7 @@ function populateSenderStats(stats, dataToRecord) {
       // outbound-rtpレポートの mediaSourceId を使って、マップから trackIdentifier を取得
       const trackIdentifier = sourceToTrackIdentifierMap.get(report.mediaSourceId);
       if (!trackIdentifier) {
-        return; // 紐づくトラックが見つからなければスキップ
+        return; 
       }
 
       let cameraName;

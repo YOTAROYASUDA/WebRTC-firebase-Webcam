@@ -39,8 +39,8 @@ video {
     border-radius: 4px;
     font-size: 14px;
     font-family: monospace;
-    pointer-events: none; /* マウスイベントをビデオに透過させる */
-    display: none; /* 最初は非表示 */
+    pointer-events: none; 
+    display: none; 
     z-index: 2;
 }
 #fullscreenBtn1, #fullscreenBtn2 {

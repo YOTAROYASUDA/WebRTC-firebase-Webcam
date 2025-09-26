@@ -1,12 +1,12 @@
 // src/evaluation.js
 
 let evaluationData = [];
-let evaluationBuffer = []; // ★ データを一時的に溜めるバッファ
+let evaluationBuffer = []; 
 let isEvaluating = false;
 let startTime = 0;
-let flushIntervalId = null; // ★ 定期処理用のID
+let flushIntervalId = null;  
 
-const FLUSH_INTERVAL = 1000; // データをまとめて書き込む間隔 (ミリ秒)
+const FLUSH_INTERVAL = 1000; // データを書き込む間隔 (ミリ秒)
 
 /**
  * バッファに溜まったデータをメインの配列に移動する
@@ -28,7 +28,6 @@ export function startEvaluation() {
     evaluationBuffer = [];
     startTime = performance.now();
 
-    // ★ 定期的にバッファをフラッシュする処理を開始
     flushIntervalId = setInterval(flushBuffer, FLUSH_INTERVAL);
 
     console.log("Evaluation started.");
@@ -46,12 +45,11 @@ export function stopEvaluation() {
     if (!isEvaluating) return;
     isEvaluating = false;
 
-    // ★ 定期処理を停止
     if (flushIntervalId) {
         clearInterval(flushIntervalId);
         flushIntervalId = null;
     }
-    // ★ 停止時に残っているバッファをすべて書き出す
+    // 停止時に残っているバッファをすべて書き出す
     flushBuffer();
 
     console.log("Evaluation stopped.");
@@ -69,7 +67,7 @@ export function stopEvaluation() {
 export function logData(data) {
     if (!isEvaluating) return;
     const timestamp = (performance.now() - startTime) / 1000.0; // 秒単位
-    // ★ メイン配列ではなくバッファに追加
+    // メイン配列ではなくバッファに追加
     evaluationBuffer.push({ timestamp, ...data });
 }
 
@@ -77,7 +75,7 @@ export function logData(data) {
  * 記録したデータをCSV形式でダウンロードする
  */
 export function downloadCSV() {
-    // ★ ダウンロード前にバッファをフラッシュ
+    // ダウンロード前にバッファをフラッシュ
     flushBuffer();
 
     if (evaluationData.length === 0) {
