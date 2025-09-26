@@ -1,6 +1,14 @@
 // webrtc.js
 
 import { db } from "./firebase-config.js";
+/*
+  collection:Firestoreのコレクションへの参照を作成する
+  doc:Firestoreのドキュメントへの参照を作成する
+  setDoc:Firestoreのドキュメントにデータを書き込む
+  getDoc:Firestoreのドキュメントからデータを取得する
+  onSnapshot:ドキュメントの変更をリアルタイムで監視する
+  deleteDoc:Firestoreのドキュメントを削除する
+*/
 import { collection, doc, setDoc, getDoc, onSnapshot, deleteDoc } from "firebase/firestore";
 import * as state from './state.js';
 import * as ui from './ui.js';
@@ -29,7 +37,7 @@ export const RTC_CONFIGURATION = {
     { urls: "turn:a.relay.metered.ca:443", username: "3c2899b6892a0dd428438fa2", credential: "UjVDP6QSI1bu0yiq" },
     { urls: "turn:a.relay.metered.ca:443?transport=tcp", username: "3c2899b6892a0dd428438fa2", credential: "UjVDP6QSI1bu0yiq" },
   ],
-  iceCandidatePoolSize: 10,
+  iceCandidatePoolSize: 10, // 事前に収集しておくICE Candidateの数を設定
 };
 
 /**
@@ -38,16 +46,18 @@ export const RTC_CONFIGURATION = {
  */
 function createPeerConnection() {
   const pc = new RTCPeerConnection(RTC_CONFIGURATION);
-
+  // 接続状態が変化したときに実行されるイベントハンドラを設定
   pc.onconnectionstatechange = () => {
     console.log(`PeerConnection state changed to: ${pc.connectionState}`);
     const isConnected = pc.connectionState === 'connected';
-    uiElements.statsControls.style.display = isConnected ? 'block' : 'none';
+    uiElements.statsControls.style.display = isConnected ? 'block' : 'none'; // 接続が確立したら、統計情報の記録を開始するUIを表示
 
+    // 接続が確立したら、統計情報の記録を開始する
     if (isConnected) {
       startStatsRecording();
     }
 
+    // 受信側（receiver）で接続が確立した場合、1秒ごとに解像度表示を更新するタイマーを開始
     if (isConnected && state.currentRole === 'receiver') {
       if (!state.resolutionUpdateInterval) {
         const interval = setInterval(updateResolutionDisplay, 1000);
@@ -70,7 +80,7 @@ function createPeerConnection() {
     }
   };
 
-  return pc;
+  return pc; // 設定済みのRTCPeerConnectionインスタンスを返す
 }
 
 /**
@@ -123,14 +133,14 @@ function preferCodec(sdp, codecName) {
 
 
 /**
- * ICE Candidateをリッスンし、Firestoreに保存する。
+ * 自身のICE Candidateをリッスンし、Firestoreに保存する。
  * @param {RTCPeerConnection} pc - RTCPeerConnectionインスタンス
  * @param {CollectionReference} candidateCollection - ICE Candidateを保存するFirestoreコレクション
  */
 function handleIceCandidates(pc, candidateCollection) {
   pc.onicecandidate = event => {
     if (event.candidate) {
-      setDoc(doc(candidateCollection), event.candidate.toJSON());
+      setDoc(doc(candidateCollection), event.candidate.toJSON()); // 見つかったCandidateをJSON形式に変換し、Firestoreの指定されたコレクションに保存する
     }
   };
 }
@@ -143,8 +153,8 @@ function listenForRemoteCandidates(candidateCollection) {
   onSnapshot(candidateCollection, snapshot => {
     snapshot.docChanges().forEach(change => {
       if (change.type === "added" && state.peerConnection) {
-        const candidate = new RTCIceCandidate(change.doc.data());
-        state.peerConnection.addIceCandidate(candidate).catch(e => console.error("Error adding ICE candidate:", e));
+        const candidate = new RTCIceCandidate(change.doc.data()); //
+        state.peerConnection.addIceCandidate(candidate).catch(e => console.error("Error adding ICE candidate:", e)); //
       }
     });
   });
@@ -189,12 +199,12 @@ export async function hangUp() {
  * 送信者（Sender）として通話を開始する。
  */
 export async function startCall() {
-  uiElements.startCameraBtn.disabled = true;
-  const cameraCount = parseInt(uiElements.cameraCountSelect.value, 10);
-  const selectedResolution = uiElements.resolutionSelect.value;
-  const selectedFramerate = parseInt(uiElements.framerateSelect.value, 10);
-  const selectedCodec = uiElements.codecSelect.value;
-  
+  uiElements.startCameraBtn.disabled = true; // 二重クリック防止のため、ボタンを無効化
+  const cameraCount = parseInt(uiElements.cameraCountSelect.value, 10); // 選択されたカメラ台数を取得
+  const selectedResolution = uiElements.resolutionSelect.value; // 選択された解像度を取得
+  const selectedFramerate = parseInt(uiElements.framerateSelect.value, 10);  // 選択されたフレームレートを取得
+  const selectedCodec = uiElements.codecSelect.value; // 選択されたビデオコーデックを取得
+  //
   const commonConstraints = {
     ...RESOLUTIONS[selectedResolution], 
     frameRate: { ideal: selectedFramerate},
