@@ -18,17 +18,14 @@ import { stopStatsRecording, updateResolutionDisplay, startStatsRecording } from
 import { stopRecording } from './recording.js';
 import { stop as stopArucoTracking } from './aruco.js';
 
-// =================================================================================
-// --- 定数定義 (Constants) ---
-// =================================================================================
-
+// 利用可能な解像度のプリセット
 export const RESOLUTIONS = {
   hd: { width: 1280, height: 720 },
   fhd: { width: 1920, height: 1080 },
   fourK: { width: 3840, height: 2160 },
 };
 
-/** WebRTC接続設定 */
+// WebRTC接続設定
 export const RTC_CONFIGURATION = {
   iceServers: [
     { urls: "stun:stun.relay.metered.ca:80" },
@@ -204,7 +201,8 @@ export async function startCall() {
   const selectedResolution = uiElements.resolutionSelect.value; // 選択された解像度を取得
   const selectedFramerate = parseInt(uiElements.framerateSelect.value, 10);  // 選択されたフレームレートを取得
   const selectedCodec = uiElements.codecSelect.value; // 選択されたビデオコーデックを取得
-  //
+
+  // カメラに要求する共通の設定（解像度、フレームレート、PTZの有効化）を作成
   const commonConstraints = {
     ...RESOLUTIONS[selectedResolution], 
     frameRate: { ideal: selectedFramerate},
@@ -220,13 +218,13 @@ export async function startCall() {
     // カメラ1のストリームを取得
     const selectedCameraId1 = uiElements.cameraSelect1.value;
     const constraints1 = { video: { deviceId: { exact: selectedCameraId1 }, ...commonConstraints }, audio: false };
-    const stream1 = await navigator.mediaDevices.getUserMedia(constraints1);
-    streams.push(stream1);
+    const stream1 = await navigator.mediaDevices.getUserMedia(constraints1); // ブラウザの機能を使って、指定した設定（constraints1）でカメラ1の映像を取得
+    streams.push(stream1); // 取得したストリームとビデオトラックを、後で管理しやすいように配列やオブジェクトに保存
     tracks.camera1 = stream1.getVideoTracks()[0];
-    uiElements.localVideo1.srcObject = stream1;
+    uiElements.localVideo1.srcObject = stream1; // 取得したカメラ映像を、HTMLの<video>要素に表示
     uiElements.localVideo1.style.display = 'block';
 
-    // カメラ2が選択されていればストリームを取得
+    // カメラ台数が2台選択されている場合は、同様にカメラ2の映像も取得・表示
     if (cameraCount === 2) {
         const selectedCameraId2 = uiElements.cameraSelect2.value;
         const constraints2 = { video: { deviceId: { exact: selectedCameraId2 }, ...commonConstraints }, audio: false };
@@ -243,36 +241,38 @@ export async function startCall() {
     state.setLocalStreams(streams);
     state.setVideoTracks(tracks);
 
-    const pc = createPeerConnection();
-    state.setPeerConnection(pc);
+    const pc = createPeerConnection(); // RTCPeerConnectionインスタンスを生成
+    state.setPeerConnection(pc); 
+    // 取得したすべてのストリームのトラックをPeerConnectionに追加
     streams.forEach(stream => {
         stream.getTracks().forEach(track => state.peerConnection.addTrack(track, stream));
     });
     
-    ptz.setupPtzDataChannel();
+    ptz.setupPtzDataChannel(); // PTZ制御用のデータチャネルをセットアップ
 
-    const callRef = doc(collection(db, "calls"));
-    state.setCallDocRef(callRef);
-    const offerCandidates = collection(callRef, "offerCandidates");
+    const callRef = doc(collection(db, "calls")); // Firestoreの"calls"コレクションに新しいドキュメントを作成
+    state.setCallDocRef(callRef); //
+    const offerCandidates = collection(callRef, "offerCandidates"); // offerCandidatesとanswerCandidatesというサブコレクションを作成
     const answerCandidates = collection(callRef, "answerCandidates");
 
-    handleIceCandidates(state.peerConnection, offerCandidates);
-    listenForRemoteCandidates(answerCandidates);
+    handleIceCandidates(state.peerConnection, offerCandidates); // 自身のICE Candidateを収集してFirestoreに保存
+    listenForRemoteCandidates(answerCandidates); // 相手のICE CandidateをFirestoreから取得してPeerConnectionに追加
 
-    const offer = await state.peerConnection.createOffer();
-    const modifiedSDP = preferCodec(offer.sdp, selectedCodec);
-    await state.peerConnection.setLocalDescription({ type: offer.type, sdp: modifiedSDP });
+    const offer = await state.peerConnection.createOffer(); // 通話を始めるためのオファー（Offer）SDPを生成
+    const modifiedSDP = preferCodec(offer.sdp, selectedCodec); // 生成したオファーSDPに、選択されたコーデックを優先する変更を加える
+    await state.peerConnection.setLocalDescription({ type: offer.type, sdp: modifiedSDP }); //　変更後のオファーを、自身のRTCPeerConnectionのローカル設定として適用
 
-    // 通話ドキュメントにカメラ台数も保存
+    // 生成したオファーとカメラ台数を、Firestoreの通話ドキュメントに保存
     await setDoc(callRef, { 
       offer: { type: offer.type, sdp: modifiedSDP },
       cameraCount: cameraCount 
     });
 
-    uiElements.callIdDisplay.textContent = callRef.id;
+    uiElements.callIdDisplay.textContent = callRef.id; // 画面にCall IDを表示
     uiElements.callControls.style.display = "block";
     uiElements.arucoControls.style.display = "block";
-
+    
+    // Firestoreの通話ドキュメントにanswerが追加されたら、それを取得してPeerConnectionのリモート設定として適用
     onSnapshot(callRef, snapshot => {
       const data = snapshot.data();
       if (data?.answer && state.peerConnection && !state.peerConnection.currentRemoteDescription) {
@@ -282,7 +282,7 @@ export async function startCall() {
 
   } catch (error) {
     console.error("Error starting camera or creating call:", error);
-    alert("カメラへのアクセスに失敗しました。利用可能か、また権限が許可されているか確認してください。");
+    alert("カメラへのアクセスに失敗しました。");
     ui.resetUI();
   }
 }
@@ -299,9 +299,9 @@ export async function joinCall() {
   uiElements.joinCallBtn.disabled = true;
 
   try {
-    const callRef = doc(db, "calls", callId);
+    const callRef = doc(db, "calls", callId); // 入力されたCall IDを使って、Firestoreの通話ドキュメントへの参照を作成
     state.setCallDocRef(callRef);
-    const callSnapshot = await getDoc(callRef);
+    const callSnapshot = await getDoc(callRef); // ドキュメントのデータを取得
     const callData = callSnapshot.data();
 
     if (!callSnapshot.exists() || !callData.offer) {
@@ -310,8 +310,8 @@ export async function joinCall() {
       return;
     }
     
-    const offer = callData.offer;
-    const cameraCount = callData.cameraCount || 2; // 古い通話データのためにデフォルト値を設定
+    const offer = callData.offer; // ドキュメントから発信者側のオファー情報を取得
+    const cameraCount = callData.cameraCount || 2; // ドキュメントからカメラ台数を取得
 
     // UIをカメラ台数に合わせて調整
     uiElements.remoteVideoContainer2.style.display = cameraCount === 2 ? 'inline-block' : 'none';
@@ -331,33 +331,34 @@ export async function joinCall() {
     let videoIndex = 0;
     const cameraNames = ['camera1', 'camera2']; 
 
+    // 相手から映像や音声のトラックが送られてきたときに呼び出される処理
     state.peerConnection.ontrack = event => {
-      if (event.track.kind === 'video' && videoIndex < cameraCount) {
-        videoElements[videoIndex].srcObject = event.streams[0];
-        containerElements[videoIndex].style.display = 'inline-block';
+      if (event.track.kind === 'video' && videoIndex < cameraCount) { 
+        videoElements[videoIndex].srcObject = event.streams[0]; // videoElements配列から対応する<video>要素にストリームを設定して表示
+        containerElements[videoIndex].style.display = 'inline-block'; // コンテナを表示
 
-        const cameraName = cameraNames[videoIndex];
-        remoteTracks[event.track.id] = {
+        const cameraName = cameraNames[videoIndex]; // camera1, camera2の名前を順に取得
+        remoteTracks[event.track.id] = { 
             displayElement: resolutionDisplays[videoIndex],
             name: cameraName
         };
 
-        videoIndex++;
+        videoIndex++; // 次のビデオトラックを次の<video>要素に割り当てるため、インデックスを増やす
       }
     };
     state.setRemoteTracks(remoteTracks);
     
-    state.peerConnection.ondatachannel = ptz.handleReceiverDataChannel;
+    state.peerConnection.ondatachannel = ptz.handleReceiverDataChannel; // 相手からデータチャネル（PTZ制御用）の接続要求があった場合の処理を設定
     
-    handleIceCandidates(state.peerConnection, answerCandidates);
+    handleIceCandidates(state.peerConnection, answerCandidates); // 自分のICE CandidateをanswerCandidatesに保存し、相手のICE CandidateをofferCandidatesから取得する設定
     listenForRemoteCandidates(offerCandidates);
 
-    await state.peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+    await state.peerConnection.setRemoteDescription(new RTCSessionDescription(offer)); // Firestoreから取得した発信者のオファーを、リモート設定として適用
     
-    const answer = await state.peerConnection.createAnswer();
-    await state.peerConnection.setLocalDescription(answer);
+    const answer = await state.peerConnection.createAnswer(); // オファーに対するアンサー（Answer）SDPを生成
+    await state.peerConnection.setLocalDescription(answer); // 生成したアンサーを、自身のローカル設定として適用
 
-    await setDoc(callRef, { answer }, { merge: true });
+    await setDoc(callRef, { answer }, { merge: true }); // 生成したアンサーを、Firestoreの通話ドキュメントに書き込む、{ merge: true }オプションにより、既存のオファー情報を消さずにanswerフィールドを追加
 
     uiElements.callIdDisplay.textContent = callRef.id;
     uiElements.callControls.style.display = "block";

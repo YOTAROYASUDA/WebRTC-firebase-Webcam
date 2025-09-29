@@ -10,15 +10,14 @@ import * as uiElements from './ui-elements.js';
  * @param {number} value - 適用する値
  */
 export async function applyPtzConstraint(target, type, value) {
-  const track = state.videoTracks[target];
+  const track = state.videoTracks[target]; // 操作対象のカメラ（target）に対応するビデオトラックを取得
   if (document.visibilityState !== 'visible' || !track || track.readyState !== 'live') {
     console.warn(`SENDER: Cannot apply PTZ to ${target}. Page not visible or track not live.`);
     return;
   }
   
-  console.log(`SENDER: Applying to ${target} - type: ${type}, value: ${value}`);
   try {
-    await track.applyConstraints({ advanced: [{ [type]: value }] });
+    await track.applyConstraints({ advanced: [{ [type]: value }] }); // PTZの制約を適用
   } catch (err) {
     console.error(`SENDER: Error applying ${type} constraint to ${target}:`, err);
   }
@@ -31,7 +30,7 @@ export async function applyPtzConstraint(target, type, value) {
 export function updateReceiverPtzControls(target) {
   console.log(`RECEIVER: Updating PTZ controls for ${target}`);
   state.setActivePtzTarget(target);
-  const capabilities = state.ptzCapabilities[target];
+  const capabilities = state.ptzCapabilities[target]; // 送信側から送られてきた、対象カメラの機能情報（capabilities）を取得
 
   ['zoom', 'pan', 'tilt'].forEach(type => {
     const isSupported = !!(capabilities && capabilities[type]);
