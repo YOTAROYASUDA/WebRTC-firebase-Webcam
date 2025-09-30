@@ -134,8 +134,8 @@ function populateSenderStats(stats, dataToRecord) {
 function populateReceiverStats(stats, dataToRecord) {
   stats.forEach(report => {
     if (report.type === 'inbound-rtp' && report.mediaType === 'video') {
-      const trackInfo = state.remoteTracks[report.trackIdentifier];
-      const cameraName = trackInfo ? trackInfo.name : null;
+      const trackInfo = state.remoteTracks[report.trackIdentifier]; // stateからこのトラックIDに対応するカメラ情報を取得
+      const cameraName = trackInfo ? trackInfo.name : null; // カメラ名（'camera1'または'camera2'）を取得
 
       if (cameraName) {
         const lastInboundReport = state.lastStatsReport?.get(report.id);
