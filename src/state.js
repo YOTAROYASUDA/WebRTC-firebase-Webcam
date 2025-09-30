@@ -1,5 +1,6 @@
 // state.js
 
+// 状態を保持する変数群
 export let peerConnection;
 export let localStreams = [];
 export let callDocRef;
@@ -15,7 +16,7 @@ export let lastStatsReport = null;
 export let resolutionUpdateInterval = null;
 export let activePtzTarget = 'camera1';
 
-// Recording state (managed per camera)
+// 録画関連の状態
 export let mediaRecorders = { camera1: null, camera2: null };
 export let recordedChunks = { camera1: [], camera2: [] };
 export let isRecording = { camera1: false, camera2: false };
