@@ -20,6 +20,8 @@ import { stop as stopArucoTracking } from './aruco.js';
 
 // 利用可能な解像度のプリセット
 export const RESOLUTIONS = {
+  vga: { width: 640, height: 360 },
+  qhd: { width: 960, height: 540 },
   hd: { width: 1280, height: 720 },
   fhd: { width: 1920, height: 1080 },
   fourK: { width: 3840, height: 2160 },
