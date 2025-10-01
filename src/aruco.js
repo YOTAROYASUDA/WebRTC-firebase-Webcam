@@ -51,20 +51,36 @@ let detector, src, gray, rgb, corners, ids;
 
 // OpenCV.jsの初期化完了を待つPromise
 const openCvReadyPromise = new Promise(resolve => {
-    cv.onRuntimeInitialized = () => {
-        console.log("OpenCV.js is fully initialized and ready.");
-        const dictionary = cv.getPredefinedDictionary(cv.DICT_4X4_50); // 検出するArUcoマーカーの種類を定義
-        const parameters = new cv.aruco_DetectorParameters(); // マーカー検出のパラメータをデフォルトで初期化
-        const refineParameters = new cv.aruco_RefineParameters(10, 3, true); // 検出精度を向上させるためのパラメータ
-        detector = new cv.aruco_ArucoDetector(dictionary, parameters, refineParameters); // マーカー検出器のインスタンスを作成
-        // OpenCVで画像データを扱うための行列（Mat）オブジェクトを初期化
+  const checkCv = () => {
+    // グローバルスコープに 'cv' オブジェクトが存在するか確認
+    if (typeof cv !== 'undefined') {
+      // 存在すれば、初期化完了時のコールバックを設定
+      console.log("OpenCV.jsのオブジェクト 'cv' を確認しました。ランタイムの初期化を待ちます。");
+      cv.onRuntimeInitialized = () => {
+        console.log("OpenCV.jsのランタイムが初期化されました。");
+        // ここでOpenCVに依存する変数を安全に初期化
+        const dictionary = cv.getPredefinedDictionary(cv.DICT_4X4_50); 
+        const parameters = new cv.aruco_DetectorParameters();
+        const refineParameters = new cv.aruco_RefineParameters(10, 3, true);
+        detector = new cv.aruco_ArucoDetector(dictionary, parameters, refineParameters);
+        
         src = new cv.Mat();
         gray = new cv.Mat();
         rgb = new cv.Mat();
         corners = new cv.MatVector();
         ids = new cv.Mat();
+        
+        // Promiseを解決して、処理の準備ができたことを通知
         resolve();
-    };
+      };
+    } else {
+      // 'cv' がまだ存在しない場合、少し待ってから再チェック
+      console.log("OpenCV.jsの 'cv' オブジェクトを待機中...");
+      setTimeout(checkCv, 100); // 100ミリ秒後に再試行
+    }
+  };
+  // 最初のチェックを開始
+  checkCv();
 });
 
 // ArUco追跡を開始する関数
