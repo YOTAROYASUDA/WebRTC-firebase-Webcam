@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <title>WebRTC webcam</title> 
-  <script type="module" crossorigin src="/WebRTC-firebase-Webcam/assets/index-CgQYTbQR.js"></script>
+  <script type="module" crossorigin src="/WebRTC-firebase-Webcam/assets/index-D95--sbK.js"></script>
   <link rel="stylesheet" crossorigin href="/WebRTC-firebase-Webcam/assets/index-BGQkFqdT.css">
 </head>
 <body>
@@ -31,6 +31,8 @@
 
     <label for="resolution">解像度:</label>
     <select id="resolution">
+      <option value="vga">640x360</option>
+      <option value="qhd">960x540</option>
       <option value="hd">1280x720</option>
       <option value="fhd">1920x1080</option>
       <option value="fourK">3840x2160</option>
@@ -109,6 +111,10 @@
         <span id="panValue" style="font-family: monospace;"></span>
       </div>
       <button id="ptzResetBtn" style="margin-top: 10px;">リセット</button>
+      
+      <button id="startImuBtn" style="margin-top: 10px;">IMU連動 開始</button>
+      <button id="stopImuBtn" style="margin-top: 10px;" disabled>IMU連動 停止</button>
+      
     </div>
   </div>
   
