@@ -96,3 +96,7 @@ video {
 .video-dragging {
     cursor: grabbing;
 }
+.video-container .dragging,
+.video-container .dragging video {
+    cursor: move;
+}

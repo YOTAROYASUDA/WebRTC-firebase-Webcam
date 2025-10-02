@@ -170,6 +170,112 @@ function initializeEventListeners() {
     uiElements.fullscreenBtn1.textContent = isFullscreen && document.fullscreenElement === uiElements.remoteVideoContainer1 ? '通常表示' : 'フルスクリーン';
     uiElements.fullscreenBtn2.textContent = isFullscreen && document.fullscreenElement === uiElements.remoteVideoContainer2 ? '通常表示' : 'フルスクリーン';
   });
+
+  // PTZ操作のためのドラッグ状態を管理する変数
+  let isDragging = false;
+  let lastMouseX = 0;
+  let lastMouseY = 0;
+  let draggedElement = null;
+  
+  // 送信すべきPTZコマンドを一時的に保持するオブジェクト
+  let ptzCommandQueue = { pan: null, tilt: null, zoom: null };
+  // アニメーションループが実行中かどうかを示すフラグ
+  let animationFrameId = null;
+
+  // コマンドを定期的に処理して送信するループ関数
+  function processPtzCommands() {
+    // キューに溜まったコマンドがあれば送信する
+    if (ptzCommandQueue.pan !== null) {
+      sendPtzCommand('pan', ptzCommandQueue.pan);
+      ptzCommandQueue.pan = null; // 送信後にキューを空にする
+    }
+    if (ptzCommandQueue.tilt !== null) {
+      sendPtzCommand('tilt', ptzCommandQueue.tilt);
+      ptzCommandQueue.tilt = null;
+    }
+    if (ptzCommandQueue.zoom !== null) {
+        sendPtzCommand('zoom', ptzCommandQueue.zoom);
+        ptzCommandQueue.zoom = null;
+    }
+
+    // ドラッグが続いていれば、次のフレームでもこの関数を実行するよう予約
+    if (isDragging) {
+      animationFrameId = requestAnimationFrame(processPtzCommands);
+    } else {
+      animationFrameId = null; // ドラッグが終わったらループを止める
+    }
+  }
+
+  const handlePtzOnMouseMove = (event) => {
+    if (!isDragging) return;
+
+    const deltaX = event.clientX - lastMouseX;
+    const deltaY = event.clientY - lastMouseY;
+    lastMouseX = event.clientX;
+    lastMouseY = event.clientY;
+
+    const caps = getActiveCaps();
+
+    // ここではコマンドを直接送信せず、キューに最新の値を入れるだけ
+    if (caps.pan) {
+      ptzCommandQueue.pan = getSliderValue('pan') - deltaX * (caps.pan.step / 10);
+    }
+    if (caps.tilt) {
+      ptzCommandQueue.tilt = getSliderValue('tilt') + deltaY * (caps.tilt.step / 10);
+    }
+  };
+
+  const handlePtzOnWheel = (event) => {
+    event.preventDefault();
+    const caps = getActiveCaps();
+
+    if (caps.zoom) {
+      // ズームも同様にキューに入れる
+      const currentZoom = getSliderValue('zoom');
+      ptzCommandQueue.zoom = currentZoom - event.deltaY * (caps.zoom.step / 100);
+      
+      // ホイール操作は連続しない場合があるので、ループが止まっていれば開始する
+      if (!animationFrameId) {
+        animationFrameId = requestAnimationFrame(processPtzCommands);
+      }
+    }
+  };
+
+  const startDrag = (event) => {
+    if (event.button !== 0) return;
+    isDragging = true;
+    lastMouseX = event.clientX;
+    lastMouseY = event.clientY;
+    draggedElement = event.currentTarget;
+    draggedElement.classList.add('dragging');
+
+    // ドラッグを開始したら、コマンド処理ループを開始する
+    if (!animationFrameId) {
+      animationFrameId = requestAnimationFrame(processPtzCommands);
+    }
+  };
+
+  const stopDrag = () => {
+    if (isDragging) {
+      isDragging = false;
+      // ループは processPtzCommands 関数内で自動的に停止する
+      if (draggedElement) {
+        draggedElement.classList.remove('dragging');
+        draggedElement = null;
+      }
+    }
+  };
+  
+  const setupPtzMouseListeners = (container) => {
+    container.addEventListener('mousedown', startDrag);
+    container.addEventListener('mousemove', handlePtzOnMouseMove);
+    container.addEventListener('wheel', handlePtzOnWheel);
+  };
+
+  window.addEventListener('mouseup', stopDrag);
+  
+  setupPtzMouseListeners(uiElements.remoteVideoContainer1);
+  setupPtzMouseListeners(uiElements.remoteVideoContainer2);
 }
 
 // =================================================================================
