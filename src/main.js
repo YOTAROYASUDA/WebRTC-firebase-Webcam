@@ -177,52 +177,39 @@ function initializeEventListeners() {
   let lastMouseY = 0;
   let draggedElement = null;
   
-  // 送信すべきPTZコマンドを一時的に保持するオブジェクト
-  let ptzCommandQueue = { pan: null, tilt: null, zoom: null };
-  // アニメーションループが実行中かどうかを示すフラグ
-  let animationFrameId = null;
-
-  // コマンドを定期的に処理して送信するループ関数
-  function processPtzCommands() {
-    // キューに溜まったコマンドがあれば送信する
-    if (ptzCommandQueue.pan !== null) {
-      sendPtzCommand('pan', ptzCommandQueue.pan);
-      ptzCommandQueue.pan = null; // 送信後にキューを空にする
-    }
-    if (ptzCommandQueue.tilt !== null) {
-      sendPtzCommand('tilt', ptzCommandQueue.tilt);
-      ptzCommandQueue.tilt = null;
-    }
-    if (ptzCommandQueue.zoom !== null) {
-        sendPtzCommand('zoom', ptzCommandQueue.zoom);
-        ptzCommandQueue.zoom = null;
-    }
-
-    // ドラッグが続いていれば、次のフレームでもこの関数を実行するよう予約
-    if (isDragging) {
-      animationFrameId = requestAnimationFrame(processPtzCommands);
-    } else {
-      animationFrameId = null; // ドラッグが終わったらループを止める
-    }
-  }
+  // スロットリングのための変数
+  let throttleTimer = null;
+  const THROTTLE_DELAY = 50; // 50msごとにコマンドを送信
 
   const handlePtzOnMouseMove = (event) => {
     if (!isDragging) return;
 
-    const deltaX = event.clientX - lastMouseX;
-    const deltaY = event.clientY - lastMouseY;
-    lastMouseX = event.clientX;
-    lastMouseY = event.clientY;
+    // 前回の処理から指定した時間が経過していなければ何もしない（スロットリング）
+    if (throttleTimer) return;
 
-    const caps = getActiveCaps();
+    throttleTimer = setTimeout(() => {
+        // パンとチルトの感度設定（小さくすると操作量が大きくなる）
+        const PAN_SENSITIVITY_DIVISOR = 5;
+        const TILT_SENSITIVITY_DIVISOR = 5;
 
-    // ここではコマンドを直接送信せず、キューに最新の値を入れるだけ
-    if (caps.pan) {
-      ptzCommandQueue.pan = getSliderValue('pan') - deltaX * (caps.pan.step / 10);
-    }
-    if (caps.tilt) {
-      ptzCommandQueue.tilt = getSliderValue('tilt') + deltaY * (caps.tilt.step / 10);
-    }
+        const deltaX = event.clientX - lastMouseX;
+        const deltaY = event.clientY - lastMouseY;
+        lastMouseX = event.clientX;
+        lastMouseY = event.clientY;
+
+        const caps = getActiveCaps();
+
+        if (caps.pan) {
+            const newPan = getSliderValue('pan') - deltaX * (caps.pan.step / PAN_SENSITIVITY_DIVISOR);
+            sendPtzCommand('pan', newPan);
+        }
+        if (caps.tilt) {
+            const newTilt = getSliderValue('tilt') + deltaY * (caps.tilt.step / TILT_SENSITIVITY_DIVISOR);
+            sendPtzCommand('tilt', newTilt);
+        }
+        
+        throttleTimer = null; // タイマーをリセット
+    }, THROTTLE_DELAY);
   };
 
   const handlePtzOnWheel = (event) => {
@@ -230,35 +217,27 @@ function initializeEventListeners() {
     const caps = getActiveCaps();
 
     if (caps.zoom) {
-      // ズームも同様にキューに入れる
+      // ズーム感度の設定（小さくするとズームが速くなる）
+      const ZOOM_SENSITIVITY_DIVISOR = 20; 
+
       const currentZoom = getSliderValue('zoom');
-      ptzCommandQueue.zoom = currentZoom - event.deltaY * (caps.zoom.step / 100);
-      
-      // ホイール操作は連続しない場合があるので、ループが止まっていれば開始する
-      if (!animationFrameId) {
-        animationFrameId = requestAnimationFrame(processPtzCommands);
-      }
+      const newZoom = currentZoom - event.deltaY * (caps.zoom.step / ZOOM_SENSITIVITY_DIVISOR);
+      sendPtzCommand('zoom', newZoom);
     }
   };
 
   const startDrag = (event) => {
-    if (event.button !== 0) return;
+    if (event.button !== 0) return; // 左クリック以外は無視
     isDragging = true;
     lastMouseX = event.clientX;
     lastMouseY = event.clientY;
     draggedElement = event.currentTarget;
     draggedElement.classList.add('dragging');
-
-    // ドラッグを開始したら、コマンド処理ループを開始する
-    if (!animationFrameId) {
-      animationFrameId = requestAnimationFrame(processPtzCommands);
-    }
   };
 
   const stopDrag = () => {
     if (isDragging) {
       isDragging = false;
-      // ループは processPtzCommands 関数内で自動的に停止する
       if (draggedElement) {
         draggedElement.classList.remove('dragging');
         draggedElement = null;
@@ -272,6 +251,7 @@ function initializeEventListeners() {
     container.addEventListener('wheel', handlePtzOnWheel);
   };
 
+  // マウスのボタンが画面のどこで離されてもドラッグを終了する
   window.addEventListener('mouseup', stopDrag);
   
   setupPtzMouseListeners(uiElements.remoteVideoContainer1);
