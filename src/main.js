@@ -200,11 +200,11 @@ function initializeEventListeners() {
         const caps = getActiveCaps();
 
         if (caps.pan) {
-            const newPan = getSliderValue('pan') - deltaX * (caps.pan.step / PAN_SENSITIVITY_DIVISOR);
+            const newPan = getSliderValue('pan') + deltaX * (caps.pan.step / PAN_SENSITIVITY_DIVISOR);
             sendPtzCommand('pan', newPan);
         }
         if (caps.tilt) {
-            const newTilt = getSliderValue('tilt') + deltaY * (caps.tilt.step / TILT_SENSITIVITY_DIVISOR);
+            const newTilt = getSliderValue('tilt') - deltaY * (caps.tilt.step / TILT_SENSITIVITY_DIVISOR);
             sendPtzCommand('tilt', newTilt);
         }
         
